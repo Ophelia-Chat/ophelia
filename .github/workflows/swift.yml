@@ -16,15 +16,17 @@ jobs:
       - name: Check Out Code
         uses: actions/checkout@v4
 
-      # Set up Xcode environment
-      - name: Set up Xcode
-        run: sudo xcode-select -switch /Applications/Xcode.app
+      # Set Xcode version to match project requirements
+      - name: Select Xcode 16.1
+        run: sudo xcode-select -switch /Applications/Xcode_16.1.app
 
-      # List available Xcode versions for debugging
-      - name: Debug Xcode Version
+      # List Xcode version and available simulators for debugging
+      - name: Debug Xcode and Simulator
         run: |
           echo "Using Xcode version:"
           xcodebuild -version
+          echo "Available iOS simulators:"
+          xcrun simctl list
 
       # Cache DerivedData to speed up builds
       - name: Cache DerivedData
@@ -51,4 +53,4 @@ jobs:
           echo "DerivedData directory contents:"
           ls DerivedData || echo "DerivedData not found"
           echo "Build Logs:"
-          cat /Users/runner/Library/Logs/DiagnosticReports/xcodebuild*
+          find ~/Library/Logs -type f -name "*.xcresult" | xargs cat || echo "No logs found"
