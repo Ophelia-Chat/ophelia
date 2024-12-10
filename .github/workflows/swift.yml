@@ -1,0 +1,33 @@
+# This workflow builds an iPhone app using Xcode
+name: Build iPhone App
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      # Check out the repository
+      - uses: actions/checkout@v4
+
+      # Set up Xcode
+      - name: Set up Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      # Cache DerivedData to speed up builds
+      - name: Cache DerivedData
+        uses: actions/cache@v3
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-xcode-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-
+
+      # Build the app
+      - name: Build App
+        run: xcodebuild -workspace ophelia.xcodeproj/project.xcworkspace -scheme ophelia -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.4' build
