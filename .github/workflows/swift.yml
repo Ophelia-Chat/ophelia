@@ -16,19 +16,19 @@ jobs:
       - name: Check Out Code
         uses: actions/checkout@v4
 
-      # Set Xcode version to match project requirements
-      - name: Select Xcode 16.1
+      # Select Xcode 16.1
+      - name: Select Xcode Version
         run: sudo xcode-select -switch /Applications/Xcode_16.1.app
 
-      # List Xcode version and available simulators for debugging
-      - name: Debug Xcode and Simulator
+      # Check Xcode version and list simulators
+      - name: Debug Environment
         run: |
-          echo "Using Xcode version:"
+          echo "Xcode Version:"
           xcodebuild -version
-          echo "Available iOS simulators:"
+          echo "Available Simulators:"
           xcrun simctl list
 
-      # Cache DerivedData to speed up builds
+      # Cache DerivedData
       - name: Cache DerivedData
         uses: actions/cache@v3
         with:
@@ -37,20 +37,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-xcode-
 
+      # List project files for debugging
+      - name: List Project Directory
+        run: ls -R ophelia
+
       # Build the app
       - name: Build App
         run: |
           xcodebuild -workspace ophelia/ophelia.xcodeproj/project.xcworkspace \
                      -scheme ophelia \
                      -sdk iphonesimulator \
-                     -destination 'platform=iOS Simulator,name=iPhone 14,OS=17.5' \
+                     -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
                      build
 
-      # Debug potential build issues
-      - name: Check Derived Data and Logs
+      # Debug DerivedData if build fails
+      - name: Check Derived Data
         if: failure()
         run: |
-          echo "DerivedData directory contents:"
+          echo "DerivedData Directory:"
           ls DerivedData || echo "DerivedData not found"
-          echo "Build Logs:"
-          find ~/Library/Logs -type f -name "*.xcresult" | xargs cat || echo "No logs found"
