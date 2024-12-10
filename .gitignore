@@ -1,2 +1,26 @@
+# Xcode-specific files
+*.xcuserdata
 *.xcuserstate
+*.swp
+.DS_Store
+
+# Build and derived data
+DerivedData/
+Build/
+*.ipa
+*.app
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/
+
+# Logs
+*.log
 
