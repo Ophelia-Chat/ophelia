@@ -13,11 +13,18 @@ jobs:
 
     steps:
       # Check out the repository
-      - uses: actions/checkout@v4
+      - name: Check Out Code
+        uses: actions/checkout@v4
 
-      # Set up Xcode
+      # Set up Xcode environment
       - name: Set up Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app
+
+      # List available Xcode versions for debugging
+      - name: Debug Xcode Version
+        run: |
+          echo "Using Xcode version:"
+          xcodebuild -version
 
       # Cache DerivedData to speed up builds
       - name: Cache DerivedData
@@ -30,4 +37,18 @@ jobs:
 
       # Build the app
       - name: Build App
-        run: xcodebuild -workspace ophelia/ophelia.xcodeproj/project.xcworkspace -scheme ophelia -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=17.5' build
+        run: |
+          xcodebuild -workspace ophelia/ophelia.xcodeproj/project.xcworkspace \
+                     -scheme ophelia \
+                     -sdk iphonesimulator \
+                     -destination 'platform=iOS Simulator,name=iPhone 14,OS=17.5' \
+                     build
+
+      # Debug potential build issues
+      - name: Check Derived Data and Logs
+        if: failure()
+        run: |
+          echo "DerivedData directory contents:"
+          ls DerivedData || echo "DerivedData not found"
+          echo "Build Logs:"
+          cat /Users/runner/Library/Logs/DiagnosticReports/xcodebuild*
