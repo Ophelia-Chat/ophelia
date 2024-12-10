@@ -28,11 +28,15 @@ jobs:
           echo "Available Simulators:"
           xcrun simctl list
 
+      # Ensure DerivedData directory exists
+      - name: Ensure DerivedData Exists
+        run: mkdir -p ~/Library/Developer/Xcode/DerivedData
+
       # Cache DerivedData
       - name: Cache DerivedData
         uses: actions/cache@v3
         with:
-          path: DerivedData
+          path: ~/Library/Developer/Xcode/DerivedData
           key: ${{ runner.os }}-xcode-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-xcode-
@@ -55,4 +59,4 @@ jobs:
         if: failure()
         run: |
           echo "DerivedData Directory:"
-          ls DerivedData || echo "DerivedData not found"
+          ls ~/Library/Developer/Xcode/DerivedData || echo "DerivedData not found"
