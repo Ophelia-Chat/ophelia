@@ -30,4 +30,4 @@ jobs:
 
       # Build the app
       - name: Build App
-        run: xcodebuild -workspace ophelia.xcodeproj/project.xcworkspace -scheme ophelia -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=17.5' build
+        run: xcodebuild -workspace ophelia/ophelia.xcodeproj/project.xcworkspace -scheme ophelia -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=17.5' build
