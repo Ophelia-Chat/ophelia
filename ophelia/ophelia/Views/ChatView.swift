@@ -18,8 +18,7 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
-                Color.Theme.primaryGradient
+                Color.Theme.primaryGradient(isDarkMode: isDarkMode)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -34,7 +33,7 @@ struct ChatView: View {
                         Button(action: { showingSettings = true }) {
                             Image(systemName: "gear")
                                 .font(.system(size: 20))
-                                .foregroundColor(.Theme.textSecondary)
+                                .foregroundColor(Color.Theme.textSecondary(isDarkMode: isDarkMode))
                         }
                     }
                     .padding()
@@ -71,6 +70,24 @@ struct ChatView: View {
                         viewModel.updateAppSettings(tempSettings)
                     }
                 )
+            }
+            .onAppear {
+                Task {
+                    await viewModel.finalizeSetup()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        Button(role: .destructive, action: {
+                            viewModel.clearMessages()
+                        }) {
+                            Label("Clear Chat", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
             }
         }
     }

@@ -12,11 +12,16 @@ struct ChatInputView: View {
     let isDisabled: Bool
     let sendAction: () -> Void
     @FocusState.Binding var isFocused: Bool
-    
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
-            
+            Divider() // A simple divider above the input bar
+
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Message...", text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -35,7 +40,7 @@ struct ChatInputView: View {
                     .autocorrectionDisabled()
                     .submitLabel(.send)
                     .onSubmit(sendAction)
-                
+
                 Button(action: sendAction) {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 20))
@@ -50,6 +55,7 @@ struct ChatInputView: View {
             .padding(.vertical, 8)
         }
         .background {
+            // A background that ensures the input bar looks good with the system background
             Rectangle()
                 .fill(Color(.systemBackground))
                 .ignoresSafeArea(edges: .bottom)

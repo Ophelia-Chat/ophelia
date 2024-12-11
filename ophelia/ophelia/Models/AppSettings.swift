@@ -8,28 +8,21 @@
 import Foundation
 import AVFoundation
 
-// MARK: - Chat Model
+/// Represents a chat model from a given provider.
 struct ChatModel: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let provider: ChatProvider
-    
-    static func == (lhs: ChatModel, rhs: ChatModel) -> Bool {
-        lhs.id == rhs.id
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
 }
 
-// MARK: - Chat Provider
+/// Indicates which AI provider to use: OpenAI or Anthropic.
 enum ChatProvider: String, Codable, CaseIterable, Identifiable {
     case openAI = "OpenAI"
     case anthropic = "Anthropic"
-    
+
     var id: String { rawValue }
-    
+
+    /// Available models for this provider.
     var availableModels: [ChatModel] {
         switch self {
         case .openAI:
@@ -45,13 +38,14 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
             ]
         }
     }
-    
+
+    /// Default model if none is selected.
     var defaultModel: ChatModel {
         availableModels[0]
     }
 }
 
-// MARK: - App Settings
+/// Holds user-configurable settings for the application, including API keys, models, and voice settings.
 struct AppSettings: Codable, Equatable {
     // API Settings
     var openAIKey: String = ""
@@ -59,14 +53,14 @@ struct AppSettings: Codable, Equatable {
     var selectedProvider: ChatProvider = .openAI
     var selectedModelId: String
     var systemMessage: String = ""
-    
+
     // Voice Settings
     var selectedVoiceProvider: VoiceProvider = .system
     var selectedSystemVoiceId: String
     var selectedOpenAIVoice: String = "alloy"
     var autoplayVoice: Bool = false
-    
-    // Computed Properties
+
+    /// Current API key based on selected provider.
     var currentAPIKey: String {
         switch selectedProvider {
         case .openAI:
@@ -75,12 +69,13 @@ struct AppSettings: Codable, Equatable {
             return anthropicKey
         }
     }
-    
+
+    /// The currently selected model object.
     var selectedModel: ChatModel {
         selectedProvider.availableModels.first { $0.id == selectedModelId } ?? selectedProvider.defaultModel
     }
-    
-    // Initialize with default values
+
+    /// Initializes the settings with default model and system voice.
     init() {
         self.selectedModelId = ChatProvider.openAI.defaultModel.id
         self.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()

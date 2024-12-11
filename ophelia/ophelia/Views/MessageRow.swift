@@ -9,6 +9,11 @@ import SwiftUI
 
 struct MessageRow: View {
     @ObservedObject var message: MutableMessage
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
@@ -16,11 +21,11 @@ struct MessageRow: View {
                 Spacer(minLength: 60)
                 messageContent
                     .foregroundColor(.white)
-                    .background(Color.Theme.accentGradient)
+                    .background(Color.Theme.accentGradient(isDarkMode: isDarkMode))
             } else {
                 messageContent
-                    .foregroundColor(.Theme.textPrimary)
-                    .background(Color.Theme.bubbleBackground)
+                    .foregroundColor(Color.Theme.textPrimary(isDarkMode: isDarkMode))
+                    .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
                             .stroke(Color.white.opacity(0.5), lineWidth: 1)

@@ -11,14 +11,20 @@ struct ChatInputContainer: View {
     @Binding var inputText: String
     let isDisabled: Bool
     let onSend: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Message Ophelia...", text: $inputText, axis: .vertical)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(Color.Theme.bubbleBackground)
+                    // Call the theme function with isDarkMode
+                    .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
@@ -30,7 +36,8 @@ struct ChatInputContainer: View {
                         .font(.system(size: 20))
                         .foregroundColor(.white)
                         .frame(width: 44, height: 44)
-                        .background(Color.Theme.accentGradient)
+                        // Call theme function with isDarkMode
+                        .background(Color.Theme.accentGradient(isDarkMode: isDarkMode))
                         .clipShape(Circle())
                         .shadow(color: .black.opacity(0.1), radius: 5)
                 }
@@ -40,10 +47,9 @@ struct ChatInputContainer: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(
-                Color.white.opacity(0.5)
-                    .background(.ultraThinMaterial)
-            )
+            // Separate background layers into multiple modifiers
+            .background(.ultraThinMaterial)
+            .background(Color.white.opacity(0.5))
         }
     }
 }

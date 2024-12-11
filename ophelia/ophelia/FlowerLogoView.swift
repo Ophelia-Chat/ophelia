@@ -8,18 +8,21 @@
 import SwiftUI
 
 struct FlowerLogoView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDarkMode: Bool { colorScheme == .dark }
+    
     var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
             ZStack {
                 ForEach(0..<5) { index in
                     Petal()
-                        .fill(Color.Theme.accentGradient)
+                        .fill(Color.Theme.accentGradient(isDarkMode: isDarkMode))
                         .frame(width: size * 0.4, height: size * 0.6)
                         .rotationEffect(.degrees(Double(index) * 72))
                 }
                 Circle()
-                    .fill(Color.Theme.accentGradient)
+                    .fill(Color.Theme.accentGradient(isDarkMode: isDarkMode))
                     .frame(width: size * 0.2)
             }
         }
