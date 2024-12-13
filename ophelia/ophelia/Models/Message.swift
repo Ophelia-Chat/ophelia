@@ -15,7 +15,7 @@ protocol Message {
     var timestamp: Date { get }
 }
 
-class MutableMessage: ObservableObject, Message {
+class MutableMessage: ObservableObject, Message, Identifiable {
     let id: UUID
     @Published var text: String
     let isUser: Bool
