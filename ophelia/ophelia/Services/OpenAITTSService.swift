@@ -30,8 +30,11 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         self.apiKey = apiKey
         self.voiceId = voiceId
         super.init()
-        setupAudioSession()
-        setupNotifications()
+        // Configure audio session and notifications on main actor
+        Task { @MainActor in
+            setupAudioSession()
+            setupNotifications()
+        }
     }
 
     public func updateVoice(_ newVoiceId: String) {
@@ -41,10 +44,13 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     public func speak(_ text: String) async throws {
         guard !text.isEmpty else { return }
 
-        // Stop any existing playback if needed
-        await stopOnMain()
+        stopOnMain()
 
-        state = .preparing
+        // Use MainActor.run to ensure state updates on main thread
+        await MainActor.run {
+            state = .preparing
+        }
+
         let task = Task {
             do {
                 let audioData = try await fetchAudioWithRetries(for: text)
@@ -61,20 +67,23 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         try await task.value
     }
 
-    public nonisolated func stop() {
-        Task { @MainActor in
-            stopOnMain()
+    public func stop() {
+        stopOnMain()
+    }
+
+    // nonisolated so deinit can call it directly without capturing self in async context
+    nonisolated private func stopOnMain() {
+        // Dispatch main actor work without capturing self weakly in deinit
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            self.state = .cancelled
+            self.currentTask?.cancel()
+            self.currentTask = nil
+            self.cleanup()
         }
     }
 
     @MainActor
-    private func stopOnMain() {
-        state = .cancelled
-        currentTask?.cancel()
-        currentTask = nil
-        cleanup()
-    }
-
     private func cleanup() {
         player?.stop()
         player = nil
@@ -88,6 +97,7 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         state = .idle
     }
 
+    @MainActor
     private func setupAudioSession() {
         do {
             try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
@@ -96,6 +106,7 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         }
     }
 
+    @MainActor
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
             self,
@@ -114,7 +125,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
                 let data = try await fetchAudioData(for: text)
                 return data
             } catch let error as VoiceError {
-                // Check if error is transient
                 if shouldRetry(error: error) && attempt < maxRetries - 1 {
                     attempt += 1
                     try await Task.sleep(nanoseconds: backoff)
@@ -123,7 +133,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
                     throw error
                 }
             } catch {
-                // Non-VoiceError error, not retrying
                 throw error
             }
         }
@@ -134,7 +143,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     private func shouldRetry(error: VoiceError) -> Bool {
         switch error {
         case .rateLimitExceeded, .invalidResponse, .serverError:
-            // Treat as transient
             return true
         default:
             return false
@@ -179,6 +187,7 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         }
     }
 
+    @MainActor
     private func playAudioData(_ audioData: Data) async throws {
         guard state == .preparing else { return }
 
@@ -200,12 +209,13 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         player.delegate = delegate
 
         guard player.prepareToPlay() else {
+            self.state = .idle
             throw VoiceError.playbackFailed
         }
 
-        state = .playing
+        self.state = .playing
         guard player.play() else {
-            state = .idle
+            self.state = .idle
             throw VoiceError.playbackFailed
         }
 
@@ -220,40 +230,38 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     }
 
     @objc private func handleInterruption(notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
 
-        Task { @MainActor in
-            handleInterruptionOnMain(type: type, options: userInfo[AVAudioSessionInterruptionOptionKey].flatMap {
-                AVAudioSession.InterruptionOptions(rawValue: $0 as? UInt ?? 0)
-            })
-        }
-    }
-
-    @MainActor
-    private func handleInterruptionOnMain(type: AVAudioSession.InterruptionType, options: AVAudioSession.InterruptionOptions?) {
-        switch type {
-        case .began:
-            print("[OpenAITTS] Audio session interrupted")
-            stopOnMain()
-        case .ended:
-            if let options = options, options.contains(.shouldResume), state == .playing {
-                player?.play()
+            guard let userInfo = notification.userInfo,
+                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+                return
             }
-        @unknown default:
-            break
+
+            switch type {
+            case .began:
+                print("[OpenAITTS] Audio session interrupted")
+                self.stopOnMain()
+            case .ended:
+                if let options = userInfo[AVAudioSessionInterruptionOptionKey].flatMap({ AVAudioSession.InterruptionOptions(rawValue: $0 as? UInt ?? 0) }),
+                   options.contains(.shouldResume),
+                   self.state == .playing {
+                    self.player?.play()
+                }
+            @unknown default:
+                break
+            }
         }
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.stopOnMain()
-            }
+        // In deinit, do not call stopOnMain() or any main-actor method.
+        // Just do minimal cleanup without async or main-actor hopping.
+        player?.stop()
+        player = nil
+        audioDelegate = nil
     }
 }
 
