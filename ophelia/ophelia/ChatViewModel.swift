@@ -9,6 +9,24 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+private struct MessageDTO: Codable {
+    let id: UUID
+    let text: String
+    let isUser: Bool
+    let timestamp: Date
+
+    init(from message: MutableMessage) {
+        self.id = message.id
+        self.text = message.text
+        self.isUser = message.isUser
+        self.timestamp = message.timestamp
+    }
+
+    func toMessage() -> MutableMessage {
+        MutableMessage(id: id, text: text, isUser: isUser, timestamp: timestamp)
+    }
+}
+
 @MainActor
 class ChatViewModel: ObservableObject {
     @Published private(set) var messages: [MutableMessage] = []
@@ -24,7 +42,6 @@ class ChatViewModel: ObservableObject {
     private var speechTask: Task<Void, Never>?
     private var subscriptions = Set<AnyCancellable>()
 
-    // Services strongly referenced
     private var openAITTSService: OpenAITTSService?
     private var systemVoiceService: SystemVoiceService?
 
@@ -37,27 +54,26 @@ class ChatViewModel: ObservableObject {
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 
-        // Start with default settings; finalizeSetup() will load real values from "appSettingsData"
         self.appSettings = AppSettings()
         setupNotifications()
     }
 
-    // MARK: - Public Methods
-
-    /// Called when the view appears or after settings change. Loads settings and messages, then initializes services.
     func finalizeSetup() async {
-        loadAppSettingsFromStorage()
+        await loadSettings()
         await loadInitialData()
         initializeChatService(with: appSettings)
         initializeVoiceService(with: appSettings)
         print("[ChatViewModel] Setup complete: Provider = \(appSettings.selectedProvider), Model = \(appSettings.selectedModelId)")
     }
 
-    /// Sends a user message to the AI and handles the response flow.
+    private func maskAPIKey(_ key: String) -> String {
+        guard key.count > 8 else { return "***" }
+        return "\(key.prefix(4))...***...\(key.suffix(4))"
+    }
+
     func sendMessage() {
-        // Debug prints to trace issues with keys and provider
-        print("[Debug] Provider: \(appSettings.selectedProvider), currentAPIKey: \(appSettings.currentAPIKey)")
-        print("[Debug] openAIKey: \(appSettings.openAIKey), anthropicKey: \(appSettings.anthropicKey)")
+        print("[Debug] Provider: \(appSettings.selectedProvider)")
+        print("[Debug] Using API Key: \(maskAPIKey(appSettings.currentAPIKey))")
 
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard !appSettings.currentAPIKey.isEmpty else {
@@ -83,7 +99,6 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Stops any current operations (e.g., streaming responses or speech).
     func stopCurrentOperations() {
         stopCurrentSpeech()
         activeTask?.cancel()
@@ -91,7 +106,6 @@ class ChatViewModel: ObservableObject {
         isLoading = false
     }
 
-    /// Clears all messages from the conversation and saves the empty state.
     func clearMessages() {
         stopCurrentOperations()
         messages.removeAll()
@@ -101,7 +115,37 @@ class ChatViewModel: ObservableObject {
         print("[ChatViewModel] Messages cleared.")
     }
 
-    // MARK: - Private Methods (Initialization)
+    func updateAppSettings(_ newSettings: AppSettings) {
+        stopCurrentOperations()
+
+        let oldProvider = appSettings.selectedProvider
+        let oldVoiceProvider = appSettings.selectedVoiceProvider
+        let oldSystemVoiceId = appSettings.selectedSystemVoiceId
+        let oldOpenAIVoice = appSettings.selectedOpenAIVoice
+        let oldOpenAIKey = appSettings.openAIKey
+
+        appSettings = newSettings
+
+        if appSettings.currentAPIKey.isEmpty {
+            print("[ChatViewModel] Warning: Provider \(appSettings.selectedProvider) selected without a valid key.")
+        }
+
+        if oldProvider != newSettings.selectedProvider || appSettings.currentAPIKey != newSettings.currentAPIKey {
+            initializeChatService(with: newSettings)
+        }
+
+        if oldVoiceProvider != newSettings.selectedVoiceProvider ||
+            oldSystemVoiceId != newSettings.selectedSystemVoiceId ||
+            oldOpenAIVoice != newSettings.selectedOpenAIVoice ||
+            oldOpenAIKey != newSettings.openAIKey {
+            updateVoiceService(with: newSettings, oldVoiceProvider: oldVoiceProvider)
+        }
+
+        Task {
+            await saveSettings()
+        }
+        print("[ChatViewModel] App settings updated and saved.")
+    }
 
     private func setupNotifications() {
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
@@ -121,10 +165,10 @@ class ChatViewModel: ObservableObject {
         switch settings.selectedProvider {
         case .openAI:
             chatService = OpenAIChatService(apiKey: settings.openAIKey)
-            print("[ChatViewModel] Initialized OpenAI Chat Service.")
+            print("[ChatViewModel] Initialized OpenAI Chat Service with key: \(maskAPIKey(settings.openAIKey))")
         case .anthropic:
             chatService = AnthropicService(apiKey: settings.anthropicKey)
-            print("[ChatViewModel] Initialized Anthropic Chat Service.")
+            print("[ChatViewModel] Initialized Anthropic Chat Service with key: \(maskAPIKey(settings.anthropicKey))")
         }
     }
 
@@ -152,20 +196,38 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Private Methods (Loading and Saving Settings)
+    private func updateVoiceService(with settings: AppSettings, oldVoiceProvider: VoiceProvider) {
+        stopCurrentSpeech()
 
-    /// Loads `appSettings` from "appSettingsData" in `UserDefaults`, which is written by `SettingsView`.
-    private func loadAppSettingsFromStorage() {
-        if let data = userDefaults.data(forKey: "appSettingsData"),
-           let decodedSettings = try? decoder.decode(AppSettings.self, from: data) {
+        if oldVoiceProvider == settings.selectedVoiceProvider {
+            switch settings.selectedVoiceProvider {
+            case .system:
+                let systemService = SystemVoiceService(voiceIdentifier: settings.selectedSystemVoiceId)
+                self.systemVoiceService = systemService
+                self.voiceService = systemService
+                print("[ChatViewModel] Updated system voice to: \(settings.selectedSystemVoiceId)")
+            case .openAI:
+                if let service = openAITTSService {
+                    service.updateVoice(settings.selectedOpenAIVoice)
+                    print("[ChatViewModel] Updated OpenAI voice to: \(settings.selectedOpenAIVoice)")
+                } else {
+                    initializeVoiceService(with: settings)
+                }
+            }
+        } else {
+            initializeVoiceService(with: settings)
+        }
+    }
+
+    private func loadSettings() async {
+        if let savedSettings = userDefaults.data(forKey: "appSettingsData"),
+           let decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettings) {
             self.appSettings = decodedSettings
-            print("[ChatViewModel] Loaded app settings from storage.")
+            print("[ChatViewModel] Loaded saved app settings.")
         } else {
             print("[ChatViewModel] Using default app settings.")
         }
     }
-
-    // MARK: - Private Methods (Messages)
 
     func loadInitialData() async {
         if let savedMessages = userDefaults.data(forKey: "savedMessages"),
@@ -178,12 +240,16 @@ class ChatViewModel: ObservableObject {
     }
 
     private func saveMessages() async {
-        guard let encoded = try? encoder.encode(messages.map { MessageDTO(from: $0) }) else { return }
+        guard let encoded: Data = try? encoder.encode(messages.map { MessageDTO(from: $0) }) else { return }
         userDefaults.set(encoded, forKey: "savedMessages")
         print("[ChatViewModel] Messages saved.")
     }
 
-    // MARK: - Private Methods (Message Sending Flow)
+    private func saveSettings() async {
+        guard let encoded: Data = try? encoder.encode(appSettings) else { return }
+        userDefaults.set(encoded, forKey: "appSettingsData")
+        print("[ChatViewModel] App settings saved.")
+    }
 
     private func performSendFlow() async {
         print("[ChatViewModel] Sending message to API...")
@@ -197,12 +263,29 @@ class ChatViewModel: ObservableObject {
             }
 
             let payload = prepareMessagesPayload()
-            let stream = try await service.streamCompletion(messages: payload, model: appSettings.selectedModelId)
+
+            let systemMessage: String?
+            if appSettings.selectedProvider == .anthropic {
+                // System prompt at top-level for Anthropic
+                systemMessage = appSettings.systemMessage.isEmpty ? nil : appSettings.systemMessage
+            } else {
+                systemMessage = nil
+            }
+
+            let stream = try await service.streamCompletion(messages: payload, model: appSettings.selectedModelId, system: systemMessage)
             let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
 
             print("[ChatViewModel] Received response: \(completeResponse)")
-            speakMessage(completeResponse)
-            await saveMessages()
+
+            if completeResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // If no response text, remove the empty assistant message
+                if let last = messages.last, !last.isUser {
+                    messages.removeLast()
+                }
+            } else {
+                speakMessage(completeResponse)
+                await saveMessages()
+            }
         } catch {
             print("[ChatViewModel] Error fetching response: \(error)")
             handleError(error)
@@ -213,15 +296,24 @@ class ChatViewModel: ObservableObject {
     }
 
     private func prepareMessagesPayload() -> [[String: String]] {
-        var messagesPayload = messages.dropLast().map { msg in
-            ["role": msg.isUser ? "user" : "assistant", "content": msg.text]
+        // Start with an empty array
+        var messagesPayload: [[String: String]] = []
+        
+        // Add conversation messages, excluding the last one (which is the current assistant message)
+        for message in messages.dropLast() {
+            // Clean the message text to remove any problematic characters
+            let cleanedText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Only add non-empty messages
+            if !cleanedText.isEmpty {
+                messagesPayload.append([
+                    "role": message.isUser ? "user" : "assistant",
+                    "content": cleanedText
+                ])
+            }
         }
-
-        if !appSettings.systemMessage.isEmpty {
-            messagesPayload.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
-        }
-
-        return Array(messagesPayload)
+        
+        return messagesPayload
     }
 
     private func handleResponseStream(
@@ -233,7 +325,7 @@ class ChatViewModel: ObservableObject {
             if Task.isCancelled { break }
             aiMessage.text.append(content)
             completeResponse += content
-            objectWillChange.send() // Update UI incrementally
+            objectWillChange.send()
         }
         return completeResponse
     }
@@ -259,8 +351,6 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Speech Methods
-
     private func stopCurrentSpeech() {
         speechTask?.cancel()
         speechTask = nil
@@ -277,7 +367,6 @@ class ChatViewModel: ObservableObject {
                 print("[ChatViewModel] Speech completed successfully.")
             } catch {
                 print("[ChatViewModel] Speech error: \(error)")
-                // If OpenAI TTS fails, fallback to system voice
                 if voiceService is OpenAITTSService {
                     print("[ChatViewModel] OpenAI TTS failed, falling back to system voice.")
                     let fallbackService = SystemVoiceService(voiceIdentifier: VoiceHelper.getDefaultVoiceIdentifier())
@@ -292,24 +381,5 @@ class ChatViewModel: ObservableObject {
         subscriptions.forEach { $0.cancel() }
         subscriptions.removeAll()
         print("[ChatViewModel] Deinitialized.")
-    }
-}
-
-// MARK: - MessageDTO for saving/loading messages
-private struct MessageDTO: Codable {
-    let id: UUID
-    let text: String
-    let isUser: Bool
-    let timestamp: Date
-
-    init(from message: MutableMessage) {
-        self.id = message.id
-        self.text = message.text
-        self.isUser = message.isUser
-        self.timestamp = message.timestamp
-    }
-
-    func toMessage() -> MutableMessage {
-        MutableMessage(id: id, text: text, isUser: isUser, timestamp: timestamp)
     }
 }

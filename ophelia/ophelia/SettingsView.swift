@@ -41,6 +41,8 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        // Ensure all changes are saved before dismissing
+                        saveSettings()
                         dismiss()
                     }
                 }
@@ -55,6 +57,7 @@ struct SettingsView: View {
             }
         }
         .onChange(of: appSettings) {
+            // Automatically save any changes to the settings as they occur
             saveSettings()
         }
     }

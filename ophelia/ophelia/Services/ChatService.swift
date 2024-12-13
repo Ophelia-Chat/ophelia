@@ -11,7 +11,8 @@ import Foundation
 // MARK: - Chat Service Protocol
 public protocol ChatServiceProtocol: Actor {
     func updateAPIKey(_ newKey: String)
-    func streamCompletion(messages: [[String: String]], model: String) async throws -> AsyncThrowingStream<String, Error>
+    // Add the optional `system` parameter here:
+    func streamCompletion(messages: [[String: String]], model: String, system: String?) async throws -> AsyncThrowingStream<String, Error>
 }
 
 // MARK: - Chat Service Error

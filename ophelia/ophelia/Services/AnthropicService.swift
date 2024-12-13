@@ -2,8 +2,6 @@
 //  AnthropicService.swift
 //  ophelia
 //
-//  Created by rob on 2024-11-27.
-//
 
 import Foundation
 
@@ -11,95 +9,103 @@ actor AnthropicService: ChatServiceProtocol {
     private let baseURL = "https://api.anthropic.com/v1"
     private var apiKey: String
     private let urlSession: URLSession
-    
+
     init(apiKey: String) {
         self.apiKey = apiKey
-        
-        // Create optimized URL session configuration
+
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
         config.waitsForConnectivity = true
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.httpMaximumConnectionsPerHost = 5
-        
-        // Add additional headers for better performance
         config.httpAdditionalHeaders = [
             "Accept": "application/json",
             "Connection": "keep-alive"
         ]
-        
+
         self.urlSession = URLSession(configuration: config)
     }
-    
+
     func updateAPIKey(_ newKey: String) {
         self.apiKey = newKey
     }
-    
-    private func convertToAnthropicMessage(_ message: [String: String]) -> [String: String] {
-        let role = message["role"] ?? ""
-        let content = message["content"] ?? ""
+
+    private func maskSensitiveData(_ json: String) -> String {
+        // Mask the system message if present
+        var masked = json.replacingOccurrences(
+            of: #""system"\s*:\s*"[^"]*""#,
+            with: #""system": "[MASKED]""#,
+            options: .regularExpression
+        )
         
-        switch role {
-        case "user":
-            return ["role": "user", "content": content]
-        case "assistant":
-            return ["role": "assistant", "content": content]
-        case "system":
-            return ["role": "user", "content": "System instruction: \(content)"]
-        default:
-            return ["role": "user", "content": content]
-        }
+        // Mask any API keys if present
+        masked = masked.replacingOccurrences(
+            of: #""x-api-key"\s*:\s*"[^"]*""#,
+            with: #""x-api-key": "[MASKED]""#,
+            options: .regularExpression
+        )
+        
+        return masked
     }
-    
+
     func streamCompletion(
         messages: [[String: String]],
-        model: String
+        model: String,
+        system: String?
     ) async throws -> AsyncThrowingStream<String, Error> {
         guard !apiKey.isEmpty else {
             throw ChatServiceError.invalidAPIKey
         }
-        
+
         guard let url = URL(string: "\(baseURL)/messages") else {
             throw ChatServiceError.invalidURL
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "x-api-key")
-        request.addValue("anthropic-client/1.0.0", forHTTPHeaderField: "anthropic-client")
+        request.addValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.addValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         // Convert messages to Anthropic format
-        let anthropicMessages = messages.map(convertToAnthropicMessage)
-        
-        let payload: [String: Any] = [
+        let anthropicMessages = messages.map { message -> [String: String] in
+            let role = message["role"] ?? "user"
+            let content = message["content"] ?? ""
+            return [
+                "role": role == "user" ? "user" : "assistant",
+                "content": content
+            ]
+        }
+
+        var payload: [String: Any] = [
             "model": model,
             "messages": anthropicMessages,
             "stream": true,
-            "max_tokens": 4096,
-            "temperature": 0.7,
-            "top_p": 1,
-            "top_k": 40
+            "max_tokens": 4096
         ]
-        
+
+        if let systemPrompt = system, !systemPrompt.isEmpty {
+            payload["system"] = systemPrompt
+        }
+
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            if let requestBody = String(data: request.httpBody!, encoding: .utf8) {
+                print("Request body:", maskSensitiveData(requestBody))
+            }
         } catch {
             throw ChatServiceError.invalidRequest("Failed to serialize request: \(error.localizedDescription)")
         }
-        
-        return AsyncThrowingStream { continuation in
+
+        return AsyncThrowingStream { continuation in 
             Task {
                 do {
                     let (resultStream, response) = try await urlSession.bytes(for: request)
-                    
                     guard let httpResponse = response as? HTTPURLResponse else {
                         continuation.finish(throwing: ChatServiceError.invalidResponse)
                         return
                     }
-                    
+
                     switch httpResponse.statusCode {
                     case 200:
                         break
@@ -119,53 +125,61 @@ actor AnthropicService: ChatServiceProtocol {
                         continuation.finish(throwing: ChatServiceError.serverError("Unexpected status code: \(httpResponse.statusCode)"))
                         return
                     }
-                    
-                    var buffer = ""
+
+                    var currentContent = ""
                     for try await line in resultStream.lines {
                         if Task.isCancelled {
                             continuation.finish(throwing: ChatServiceError.cancelled)
                             break
                         }
-                        
-                        guard !line.isEmpty else { continue }
-                        
-                        if line.hasPrefix("data: ") {
-                            let dataStr = line.replacingOccurrences(of: "data: ", with: "")
-                            if dataStr == "[DONE]" {
-                                if !buffer.isEmpty {
-                                    continuation.yield(buffer)
-                                }
-                                continuation.finish()
-                                break
-                            }
-                            
-                            do {
-                                if let data = dataStr.data(using: .utf8),
-                                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                                   let delta = json["delta"] as? [String: Any],
-                                   let content = delta["text"] as? String {  // Note: Anthropic uses "text" instead of "content"
-                                    buffer += content
-                                    
-                                    // Optimize buffer flushing for better performance
-                                    if buffer.count >= 10 || content.contains(where: { ".,!?;\n".contains($0) }) {
-                                        continuation.yield(buffer)
-                                        buffer = ""
+
+                        guard !line.isEmpty, line.hasPrefix("data: ") else { continue }
+
+                        let dataStr = line.replacingOccurrences(of: "data: ", with: "")
+                        if dataStr == "[DONE]" {
+                            continuation.finish()
+                            break
+                        }
+
+                        do {
+                            if let data = dataStr.data(using: .utf8),
+                               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                                
+                                if let type = json["type"] as? String {
+                                    switch type {
+                                    case "message_start":
+                                        currentContent = ""
+                                        
+                                    case "content_block_delta":
+                                        if let delta = json["delta"] as? [String: Any],
+                                           let text = delta["text"] as? String {
+                                            currentContent += text
+                                            continuation.yield(text)
+                                        }
+                                        
+                                    case "message_delta":
+                                        if let delta = json["delta"] as? [String: Any],
+                                           let text = delta["text"] as? String {
+                                            continuation.yield(text)
+                                        }
+                                        
+                                    case "message_stop":
+                                        continuation.finish()
+                                        return
+                                        
+                                    default:
+                                        break
                                     }
                                 }
-                            } catch {
-                                print("Error parsing JSON: \(error.localizedDescription)")
-                                // Continue processing even if one message fails
-                                continue
                             }
+                        } catch {
+                            print("Error parsing JSON: \(error.localizedDescription)")
+                            continue
                         }
                     }
-                    
-                    // Send any remaining buffered content
-                    if !buffer.isEmpty && !Task.isCancelled {
-                        continuation.yield(buffer)
-                    }
-                    
+
                     continuation.finish()
+                    
                 } catch is CancellationError {
                     continuation.finish(throwing: ChatServiceError.cancelled)
                 } catch {

@@ -10,7 +10,8 @@ import Foundation
 
 public protocol OpenAIChatServiceProtocol: Actor {
     func updateAPIKey(_ newKey: String)
-    func streamCompletion(messages: [[String: String]], model: String) async throws -> AsyncThrowingStream<String, Error>
+    // Update signature to include `system: String?` to match ChatServiceProtocol
+    func streamCompletion(messages: [[String: String]], model: String, system: String?) async throws -> AsyncThrowingStream<String, Error>
 }
 
 public enum OpenAIChatServiceError: LocalizedError {
@@ -94,9 +95,11 @@ actor OpenAIChatService: ChatServiceProtocol {
     }
 
     /// Streams completion responses from OpenAI.
+    /// Note: The `system` parameter is included to match the ChatServiceProtocol but is not used here.
     func streamCompletion(
         messages: [[String: String]],
-        model: String
+        model: String,
+        system: String? // We simply accept this parameter but do not use it for OpenAI.
     ) async throws -> AsyncThrowingStream<String, Error> {
         guard !apiKey.isEmpty else {
             throw ChatServiceError.invalidAPIKey
@@ -158,7 +161,6 @@ actor OpenAIChatService: ChatServiceProtocol {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(payload)
 
-        // Using bytes(for:) to handle server-sent events (streaming)
         let (resultStream, response) = try await urlSession.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -209,7 +211,7 @@ actor OpenAIChatService: ChatServiceProtocol {
                            let content = json.choices.first?.delta?.content {
                             buffer += content
 
-                            // Yield buffer periodically for better performance and responsiveness
+                            // Yield buffer periodically for performance and responsiveness
                             if buffer.count >= 10 || content.contains(where: { ".,!?;\n".contains($0) }) {
                                 continuation.yield(buffer)
                                 buffer = ""

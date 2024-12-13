@@ -8,13 +8,20 @@
 import Foundation
 import Combine
 
-class MutableMessage: ObservableObject, Identifiable {
+protocol Message {
+    var id: UUID { get }
+    var text: String { get }
+    var isUser: Bool { get }
+    var timestamp: Date { get }
+}
+
+class MutableMessage: ObservableObject, Message {
     let id: UUID
     @Published var text: String
-    @Published var isUser: Bool
+    let isUser: Bool
     let timestamp: Date
-
-    init(id: UUID = UUID(), text: String, isUser: Bool, timestamp: Date = Date()) {
+    
+    init(id: UUID = UUID(), text: String = "", isUser: Bool, timestamp: Date = Date()) {
         self.id = id
         self.text = text
         self.isUser = isUser

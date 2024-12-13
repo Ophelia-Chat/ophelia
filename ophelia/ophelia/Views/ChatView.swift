@@ -62,7 +62,12 @@ struct ChatView: View {
                 }
             }
             .preferredColorScheme(isDarkMode ? .dark : .light)
-            .sheet(isPresented: $showingSettings) {
+            // When the sheet is dismissed, call finalizeSetup() again to load updated keys
+            .sheet(isPresented: $showingSettings, onDismiss: {
+                Task { @MainActor in
+                    await viewModel.finalizeSetup()
+                }
+            }) {
                 ChatSettingsSheet(
                     tempSettings: $tempSettings,
                     showingSettings: $showingSettings

@@ -28,13 +28,14 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
         case .openAI:
             return [
                 ChatModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", provider: self),
-                ChatModel(id: "gpt-4", name: "GPT-4", provider: self)
+                ChatModel(id: "gpt-4o-mini", name: "GPT-4o Mini", provider: self)
             ]
         case .anthropic:
+            // Update these to the new Anthropic models you want to use
             return [
-                ChatModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", provider: self),
-                ChatModel(id: "claude-3-sonnet-20240229", name: "Claude 3 Sonnet", provider: self),
-                ChatModel(id: "claude-3-haiku-20240229", name: "Claude 3 Haiku", provider: self)
+                ChatModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", provider: self),
+                ChatModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: self),
+                ChatModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", provider: self)
             ]
         }
     }
