@@ -74,6 +74,8 @@ struct AppSettings: Codable, Equatable {
     var selectedModel: ChatModel {
         selectedProvider.availableModels.first { $0.id == selectedModelId } ?? selectedProvider.defaultModel
     }
+    
+    var isDarkMode: Bool = false
 
     /// Initializes the settings with default model and system voice.
     init() {

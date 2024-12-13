@@ -37,16 +37,16 @@ class ChatViewModel: ObservableObject {
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 
-        // Start with default settings; finalizeSetup() will load real values
+        // Start with default settings; finalizeSetup() will load real values from "appSettingsData"
         self.appSettings = AppSettings()
         setupNotifications()
     }
 
     // MARK: - Public Methods
 
-    /// Called when the view appears. Loads settings and messages, then initializes services.
+    /// Called when the view appears or after settings change. Loads settings and messages, then initializes services.
     func finalizeSetup() async {
-        await loadSettings()
+        loadAppSettingsFromStorage()
         await loadInitialData()
         initializeChatService(with: appSettings)
         initializeVoiceService(with: appSettings)
@@ -55,7 +55,7 @@ class ChatViewModel: ObservableObject {
 
     /// Sends a user message to the AI and handles the response flow.
     func sendMessage() {
-        // Debug prints to help trace issues with the keys and provider
+        // Debug prints to trace issues with keys and provider
         print("[Debug] Provider: \(appSettings.selectedProvider), currentAPIKey: \(appSettings.currentAPIKey)")
         print("[Debug] openAIKey: \(appSettings.openAIKey), anthropicKey: \(appSettings.anthropicKey)")
 
@@ -99,43 +99,6 @@ class ChatViewModel: ObservableObject {
             await saveMessages()
         }
         print("[ChatViewModel] Messages cleared.")
-    }
-
-    /// Updates `appSettings` with new values and re-initializes services if needed.
-    /// Called whenever settings change in SettingsView (triggered by onSettingsChange).
-    func updateAppSettings(_ newSettings: AppSettings) {
-        stopCurrentOperations()
-
-        let oldProvider = appSettings.selectedProvider
-        let oldVoiceProvider = appSettings.selectedVoiceProvider
-        let oldSystemVoiceId = appSettings.selectedSystemVoiceId
-        let oldOpenAIVoice = appSettings.selectedOpenAIVoice
-        let oldOpenAIKey = appSettings.openAIKey
-
-        appSettings = newSettings
-
-        // Warn if the new provider has no valid key
-        if appSettings.currentAPIKey.isEmpty {
-            print("[ChatViewModel] Warning: Provider \(appSettings.selectedProvider) selected without a valid key.")
-        }
-
-        // Re-init chat service if provider or key changed
-        if oldProvider != newSettings.selectedProvider || appSettings.currentAPIKey != newSettings.currentAPIKey {
-            initializeChatService(with: newSettings)
-        }
-
-        // Re-init or update voice service if voice-related settings changed
-        if oldVoiceProvider != newSettings.selectedVoiceProvider ||
-            oldSystemVoiceId != newSettings.selectedSystemVoiceId ||
-            oldOpenAIVoice != newSettings.selectedOpenAIVoice ||
-            oldOpenAIKey != newSettings.openAIKey {
-            updateVoiceService(with: newSettings, oldVoiceProvider: oldVoiceProvider)
-        }
-
-        Task {
-            await saveSettings()
-        }
-        print("[ChatViewModel] App settings updated and saved.")
     }
 
     // MARK: - Private Methods (Initialization)
@@ -189,41 +152,20 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    private func updateVoiceService(with settings: AppSettings, oldVoiceProvider: VoiceProvider) {
-        stopCurrentSpeech()
+    // MARK: - Private Methods (Loading and Saving Settings)
 
-        if oldVoiceProvider == settings.selectedVoiceProvider {
-            switch settings.selectedVoiceProvider {
-            case .system:
-                let systemService = SystemVoiceService(voiceIdentifier: settings.selectedSystemVoiceId)
-                self.systemVoiceService = systemService
-                self.voiceService = systemService
-                print("[ChatViewModel] Updated system voice to: \(settings.selectedSystemVoiceId)")
-
-            case .openAI:
-                if let service = openAITTSService {
-                    service.updateVoice(settings.selectedOpenAIVoice)
-                    print("[ChatViewModel] Updated OpenAI voice to: \(settings.selectedOpenAIVoice)")
-                } else {
-                    initializeVoiceService(with: settings)
-                }
-            }
-        } else {
-            initializeVoiceService(with: settings)
-        }
-    }
-
-    // MARK: - Private Methods (Loading and Saving)
-
-    private func loadSettings() async {
-        if let savedSettings = userDefaults.data(forKey: "appSettings"),
-           let decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettings) {
+    /// Loads `appSettings` from "appSettingsData" in `UserDefaults`, which is written by `SettingsView`.
+    private func loadAppSettingsFromStorage() {
+        if let data = userDefaults.data(forKey: "appSettingsData"),
+           let decodedSettings = try? decoder.decode(AppSettings.self, from: data) {
             self.appSettings = decodedSettings
-            print("[ChatViewModel] Loaded saved app settings.")
+            print("[ChatViewModel] Loaded app settings from storage.")
         } else {
             print("[ChatViewModel] Using default app settings.")
         }
     }
+
+    // MARK: - Private Methods (Messages)
 
     func loadInitialData() async {
         if let savedMessages = userDefaults.data(forKey: "savedMessages"),
@@ -239,12 +181,6 @@ class ChatViewModel: ObservableObject {
         guard let encoded = try? encoder.encode(messages.map { MessageDTO(from: $0) }) else { return }
         userDefaults.set(encoded, forKey: "savedMessages")
         print("[ChatViewModel] Messages saved.")
-    }
-
-    private func saveSettings() async {
-        guard let encoded = try? encoder.encode(appSettings) else { return }
-        userDefaults.set(encoded, forKey: "appSettings")
-        print("[ChatViewModel] App settings saved.")
     }
 
     // MARK: - Private Methods (Message Sending Flow)

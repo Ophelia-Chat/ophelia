@@ -65,10 +65,7 @@ struct ChatView: View {
             .sheet(isPresented: $showingSettings) {
                 ChatSettingsSheet(
                     tempSettings: $tempSettings,
-                    showingSettings: $showingSettings,
-                    onSettingsChange: {
-                        viewModel.updateAppSettings(tempSettings)
-                    }
+                    showingSettings: $showingSettings
                 )
             }
             .onAppear {
