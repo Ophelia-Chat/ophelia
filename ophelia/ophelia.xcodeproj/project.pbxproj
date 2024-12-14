@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 19517EB22D0D2752008F81B3 /* MarkdownUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		1976BD522CF14D600066972B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -42,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,6 +105,7 @@
 			);
 			name = ophelia;
 			packageProductDependencies = (
+				19517EB22D0D2752008F81B3 /* MarkdownUI */,
 			);
 			productName = ophelia;
 			productReference = 1976BD3F2CF14D5F0066972B /* ophelia.app */;
@@ -177,6 +183,9 @@
 			);
 			mainGroup = 1976BD362CF14D5F0066972B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				19517EB12D0D2752008F81B3 /* XCRemoteSwiftPackageReference "MarkdownUI" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1976BD402CF14D5F0066972B /* Products */;
 			projectDirPath = "";
@@ -535,6 +544,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		19517EB12D0D2752008F81B3 /* XCRemoteSwiftPackageReference "MarkdownUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/MarkdownUI.git";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		19517EB22D0D2752008F81B3 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 19517EB12D0D2752008F81B3 /* XCRemoteSwiftPackageReference "MarkdownUI" */;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1976BD372CF14D5F0066972B /* Project object */;
 }

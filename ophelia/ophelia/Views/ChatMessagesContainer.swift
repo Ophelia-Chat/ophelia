@@ -2,8 +2,6 @@
 //  ChatMessagesContainer.swift
 //  ophelia
 //
-//  Created by rob on 2024-11-27.
-//
 
 import SwiftUI
 
@@ -16,6 +14,7 @@ struct ChatMessagesContainer: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(messages) { message in
+                        // Pass the entire message, not just `message.text`.
                         MessageRow(message: message)
                     }
                     
