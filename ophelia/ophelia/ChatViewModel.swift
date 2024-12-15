@@ -262,19 +262,29 @@ class ChatViewModel: ObservableObject {
                 throw ChatServiceError.invalidAPIKey
             }
 
-            let payload = prepareMessagesPayload()
+            var payload = prepareMessagesPayload()
+
+            // Insert the system message as a "system" role message for OpenAI
+            if appSettings.selectedProvider == .openAI, !appSettings.systemMessage.isEmpty {
+                payload.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
+            }
 
             let systemMessage: String?
             if appSettings.selectedProvider == .anthropic {
-                // System prompt at top-level for Anthropic
+                // For Anthropic, pass the system message separately
                 systemMessage = appSettings.systemMessage.isEmpty ? nil : appSettings.systemMessage
             } else {
+                // For OpenAI, we've already inserted the system message into payload
                 systemMessage = nil
             }
 
-            let stream = try await service.streamCompletion(messages: payload, model: appSettings.selectedModelId, system: systemMessage)
-            let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
+            let stream = try await service.streamCompletion(
+                messages: payload,
+                model: appSettings.selectedModelId,
+                system: systemMessage
+            )
 
+            let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
             print("[ChatViewModel] Received response: \(completeResponse)")
 
             if completeResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -294,7 +304,7 @@ class ChatViewModel: ObservableObject {
 
         isLoading = false
     }
-
+    
     private func prepareMessagesPayload() -> [[String: String]] {
         // Start with an empty array
         var messagesPayload: [[String: String]] = []
