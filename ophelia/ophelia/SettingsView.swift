@@ -13,6 +13,10 @@ struct SettingsView: View {
     @State private var appSettings = AppSettings()
     @Environment(\.dismiss) var dismiss
     @State private var systemVoices: [AVSpeechSynthesisVoice] = []
+    @State private var showClearHistoryAlert = false
+
+    // Closure provided by the parent view to actually clear the messages
+    var clearMessages: (() -> Void)? = nil
 
     private let openAIVoices = [
         ("alloy", "Alloy"), ("echo", "Echo"),
@@ -21,7 +25,6 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        // Remove NavigationView here to avoid nested toolbars
         Form {
             providerSection
             modelSection
@@ -29,14 +32,33 @@ struct SettingsView: View {
             systemMessageSection
             voiceSection
             appearanceSection
+
+            Section {
+                Button(role: .destructive) {
+                    showClearHistoryAlert = true
+                } label: {
+                    Text("Clear Conversation History")
+                        .foregroundColor(.red)
+                }
+                .alert("Clear Conversation History?", isPresented: $showClearHistoryAlert) {
+                    Button("Delete", role: .destructive) {
+                        // Call the provided closure from parent to actually clear messages
+                        clearMessages?()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This action will permanently delete all saved chat messages.")
+                }
+            } footer: {
+                Text("Deleting the conversation history is irreversible. Make sure you want to remove all past messages.")
+                    .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
-        // Place the Done button in the toolbar of the parent navigation context
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
-                    // Save changes before dismissing
                     saveSettings()
                     dismiss()
                 }
@@ -75,7 +97,8 @@ struct SettingsView: View {
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         } footer: {
             Text(appSettings.selectedProvider == .openAI ?
-                 "Uses OpenAI's GPT models" : "Uses Anthropic's Claude models")
+                 "Uses OpenAI's GPT models" :
+                 "Uses Anthropic's Claude models")
             .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         }
     }
@@ -132,7 +155,7 @@ struct SettingsView: View {
             Text("System Message")
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         } footer: {
-            Text("Instructions that set the behavior of the AI assistant")
+            Text("Provide instructions that define how the AI assistant should behave.")
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         }
     }
@@ -167,8 +190,8 @@ struct SettingsView: View {
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         } footer: {
             Text(appSettings.selectedVoiceProvider == .system ?
-                 "Uses system text-to-speech voices" :
-                 "Uses OpenAI's high-quality voices")
+                 "Uses the device's built-in text-to-speech voices." :
+                 "Uses OpenAI's neural voices for a higher-quality reading.")
             .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         }
     }
@@ -176,9 +199,14 @@ struct SettingsView: View {
     private var appearanceSection: some View {
         Section {
             Toggle("Dark Mode", isOn: $appSettings.isDarkMode)
+                .disabled(true)
+                .foregroundColor(.secondary)
         } header: {
             Text("Appearance")
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+        } footer: {
+            Text("Dark Mode is currently locked.")
+                .foregroundColor(.secondary) // To do
         }
     }
 

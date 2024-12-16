@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -18,35 +19,26 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // Use the primary gradient as background
                 Color.Theme.primaryGradient(isDarkMode: isDarkMode)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    HStack {
-                        Text("Ophelia")
-                            .font(.system(.title2, design: .rounded, weight: .medium))
-                            .kerning(0.5)
-                        Spacer()
-                        Button(action: { showingSettings = true }) {
-                            Image(systemName: "gear")
-                                .font(.system(size: 20))
-                                .foregroundColor(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-                        }
+                    // If no messages yet, show a placeholder
+                    if viewModel.messages.isEmpty && !viewModel.isLoading {
+                        placeholderView
+                            .transition(.opacity.combined(with: .scale))
+                    } else {
+                        // Main chat messages container
+                        ChatMessagesContainer(
+                            messages: viewModel.messages,
+                            isLoading: viewModel.isLoading,
+                            appSettings: viewModel.appSettings
+                        )
+                        .transition(.opacity)
                     }
-                    .padding()
-                    .background(
-                        Color.white.opacity(0.5)
-                            .background(.ultraThinMaterial)
-                    )
 
-                    // Messages
-                    ChatMessagesContainer(
-                        messages: viewModel.messages,
-                        isLoading: viewModel.isLoading,
-                        appSettings: viewModel.appSettings
-                    )
-
-                    // Input
+                    // Input field and send button
                     ChatInputContainer(
                         inputText: $viewModel.inputText,
                         isDisabled: viewModel.appSettings.currentAPIKey.isEmpty,
@@ -54,41 +46,76 @@ struct ChatView: View {
                             Task { @MainActor in
                                 viewModel.sendMessage()
                                 fieldIsFocused = false
+                                provideHapticFeedback()
                             }
                         }
                     )
+                    .padding(.top, 4)
                 }
             }
             .preferredColorScheme(isDarkMode ? .dark : .light)
-            // When the sheet is dismissed, call finalizeSetup() again to load updated keys
-            .sheet(isPresented: $showingSettings, onDismiss: {
-                Task { @MainActor in
-                    await viewModel.finalizeSetup()
-                }
-            }) {
-                ChatSettingsSheet(
-                    tempSettings: $tempSettings,
-                    showingSettings: $showingSettings
-                )
-            }
             .onAppear {
+                // Finalize setup on appear
                 Task {
                     await viewModel.finalizeSetup()
                 }
             }
+            // Present SettingsView in a NavigationStack to enable navigation links within settings
+            .sheet(isPresented: $showingSettings, onDismiss: {
+                // Re-initialize settings after the sheet is dismissed
+                Task { @MainActor in
+                    await viewModel.finalizeSetup()
+                }
+            }) {
+                NavigationStack {
+                    SettingsView(clearMessages: {
+                        viewModel.clearMessages()
+                    })
+                }
+            }
+            .navigationTitle("Ophelia")
+            .navigationBarTitleDisplayMode(.inline)
+            .tint(.blue)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        Button(role: .destructive, action: {
-                            viewModel.clearMessages()
-                        }) {
-                            Label("Clear Chat", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingSettings = true
+                    }) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 20))
                     }
                 }
             }
+            // Dismiss the keyboard if the scene moves to background
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                if newPhase != .active {
+                    fieldIsFocused = false
+                }
+            }
         }
+    }
+
+    // Placeholder view shown when there are no messages yet
+    private var placeholderView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "message")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+
+            Text("No messages yet.")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text("Type a message below to start the conversation.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+    }
+
+    // Provide a gentle haptic feedback when sending a message
+    private func provideHapticFeedback() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
     }
 }

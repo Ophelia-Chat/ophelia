@@ -341,12 +341,28 @@ class ChatViewModel: ObservableObject {
         aiMessage: MutableMessage
     ) async throws -> String {
         var completeResponse = ""
+        let feedbackGenerator = UIImpactFeedbackGenerator(style: .light) // Light feedback
+        let finalFeedbackGenerator = UINotificationFeedbackGenerator()   // Final haptic burst
+        var tokenCount = 0
+        
+        feedbackGenerator.prepare()
+        finalFeedbackGenerator.prepare()
+        
         for try await content in stream {
             if Task.isCancelled { break }
             aiMessage.text.append(content)
             completeResponse += content
             objectWillChange.send()
+            
+            // Generate light haptic feedback every few tokens
+            tokenCount += 1
+            if tokenCount % 5 == 0 {  // Adjust frequency of feedback
+                feedbackGenerator.impactOccurred()
+            }
         }
+        
+        // Final success feedback
+        finalFeedbackGenerator.notificationOccurred(.success)
         return completeResponse
     }
 
