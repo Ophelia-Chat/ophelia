@@ -21,7 +21,8 @@ struct ChatMainView: View {
             VStack(spacing: 0) {
                 ChatMessagesContainer(
                     messages: viewModel.messages,
-                    isLoading: viewModel.isLoading
+                    isLoading: viewModel.isLoading,
+                    appSettings: viewModel.appSettings
                 )
                 
                 ChatInputContainer(

@@ -14,16 +14,21 @@ private struct MessageDTO: Codable {
     let text: String
     let isUser: Bool
     let timestamp: Date
+    let originProvider: String?
+    let originModel: String?
 
     init(from message: MutableMessage) {
         self.id = message.id
         self.text = message.text
         self.isUser = message.isUser
         self.timestamp = message.timestamp
+        self.originProvider = message.originProvider
+        self.originModel = message.originModel
     }
 
     func toMessage() -> MutableMessage {
-        MutableMessage(id: id, text: text, isUser: isUser, timestamp: timestamp)
+        MutableMessage(id: id, text: text, isUser: isUser, timestamp: timestamp,
+                       originProvider: originProvider, originModel: originModel)
     }
 }
 
@@ -254,7 +259,12 @@ class ChatViewModel: ObservableObject {
     private func performSendFlow() async {
         print("[ChatViewModel] Sending message to API...")
 
-        let aiMessage = MutableMessage(text: "", isUser: false)
+        let aiMessage = MutableMessage(
+            text: "",
+            isUser: false,
+            originProvider: appSettings.selectedProvider.rawValue,
+            originModel: appSettings.selectedModel.name
+        )
         messages.append(aiMessage)
 
         do {

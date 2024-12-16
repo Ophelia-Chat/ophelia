@@ -21,10 +21,16 @@ class MutableMessage: ObservableObject, Message, Identifiable {
     let isUser: Bool
     let timestamp: Date
     
-    init(id: UUID = UUID(), text: String = "", isUser: Bool, timestamp: Date = Date()) {
+    var originProvider: String?
+    var originModel: String?
+
+    init(id: UUID = UUID(), text: String = "", isUser: Bool, timestamp: Date = Date(),
+         originProvider: String? = nil, originModel: String? = nil) {
         self.id = id
         self.text = text
         self.isUser = isUser
         self.timestamp = timestamp
+        self.originProvider = originProvider
+        self.originModel = originModel
     }
 }

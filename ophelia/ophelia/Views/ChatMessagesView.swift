@@ -11,6 +11,7 @@ import SwiftUI
 struct ChatMessagesView: View {
     let messages: [MutableMessage]
     let isLoading: Bool
+    let appSettings: AppSettings
     @Namespace private var bottomID
     @Environment(\.colorScheme) private var colorScheme
 
@@ -23,7 +24,7 @@ struct ChatMessagesView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(messages) { message in
-                        MessageRow(message: message)
+                        MessageRow(message: message, appSettings: appSettings)
                     }
 
                     if isLoading {

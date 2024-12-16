@@ -22,13 +22,10 @@ struct ChatView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Header with logo
                     HStack {
-                        FlowerLogoView()
-                            .frame(width: 32, height: 32)
                         Text("Ophelia")
-                            .font(.title2)
-                            .fontWeight(.light)
+                            .font(.system(.title2, design: .rounded, weight: .medium))
+                            .kerning(0.5)
                         Spacer()
                         Button(action: { showingSettings = true }) {
                             Image(systemName: "gear")
@@ -45,7 +42,8 @@ struct ChatView: View {
                     // Messages
                     ChatMessagesContainer(
                         messages: viewModel.messages,
-                        isLoading: viewModel.isLoading
+                        isLoading: viewModel.isLoading,
+                        appSettings: viewModel.appSettings
                     )
 
                     // Input
