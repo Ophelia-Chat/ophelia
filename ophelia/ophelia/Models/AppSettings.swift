@@ -19,10 +19,10 @@ struct ChatModel: Identifiable, Hashable, Codable {
 enum ChatProvider: String, Codable, CaseIterable, Identifiable {
     case openAI = "OpenAI"
     case anthropic = "Anthropic"
+    case githubModel = "GitHub Model"
 
     var id: String { rawValue }
 
-    /// Available models for this provider.
     var availableModels: [ChatModel] {
         switch self {
         case .openAI:
@@ -31,16 +31,19 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
                 ChatModel(id: "gpt-4o-mini", name: "GPT-4o Mini", provider: self)
             ]
         case .anthropic:
-            // Update these to the new Anthropic models you want to use
             return [
                 ChatModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", provider: self),
                 ChatModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: self),
                 ChatModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", provider: self)
             ]
+        case .githubModel:
+            // Adjust model name/ID to your actual model as needed.
+            return [
+                ChatModel(id: "Meta-Llama-3.1-405B-Instruct", name: "Meta Llama 3.1 405B Instruct", provider: self)
+            ]
         }
     }
 
-    /// Default model if none is selected.
     var defaultModel: ChatModel {
         availableModels[0]
     }
@@ -48,37 +51,35 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
 
 /// Holds user-configurable settings for the application, including API keys, models, and voice settings.
 struct AppSettings: Codable, Equatable {
-    // API Settings
     var openAIKey: String = ""
     var anthropicKey: String = ""
+    var githubToken: String = "" // GitHub token
+
     var selectedProvider: ChatProvider = .openAI
     var selectedModelId: String
     var systemMessage: String = ""
 
-    // Voice Settings
     var selectedVoiceProvider: VoiceProvider = .system
     var selectedSystemVoiceId: String
     var selectedOpenAIVoice: String = "alloy"
     var autoplayVoice: Bool = false
+    var isDarkMode: Bool = false
 
-    /// Current API key based on selected provider.
     var currentAPIKey: String {
         switch selectedProvider {
         case .openAI:
             return openAIKey
         case .anthropic:
             return anthropicKey
+        case .githubModel:
+            return githubToken
         }
     }
 
-    /// The currently selected model object.
     var selectedModel: ChatModel {
         selectedProvider.availableModels.first { $0.id == selectedModelId } ?? selectedProvider.defaultModel
     }
-    
-    var isDarkMode: Bool = false
 
-    /// Initializes the settings with default model and system voice.
     init() {
         self.selectedModelId = ChatProvider.openAI.defaultModel.id
         self.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()

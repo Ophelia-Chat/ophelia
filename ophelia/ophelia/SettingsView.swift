@@ -126,23 +126,31 @@ struct SettingsView: View {
 
     private var apiKeySection: some View {
         Section {
-            if appSettings.selectedProvider == .openAI {
+            switch appSettings.selectedProvider {
+            case .openAI:
                 SecureField("OpenAI API Key", text: $appSettings.openAIKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-            } else {
+            case .anthropic:
                 SecureField("Anthropic API Key", text: $appSettings.anthropicKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            case .githubModel:
+                SecureField("GitHub Token", text: $appSettings.githubToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
         } header: {
             Text("API Key")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         } footer: {
-            Text(appSettings.selectedProvider == .openAI ?
-                 "Enter your OpenAI API key. Get it from platform.openai.com" :
-                 "Enter your Anthropic API key. Get it from console.anthropic.com")
-            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+            switch appSettings.selectedProvider {
+            case .openAI:
+                Text("Enter your OpenAI API key from platform.openai.com")
+            case .anthropic:
+                Text("Enter your Anthropic API key from console.anthropic.com")
+            case .githubModel:
+                Text("Enter your GitHub token. This token gives access to Azure-based models on your dev plan.")
+            }
         }
     }
 

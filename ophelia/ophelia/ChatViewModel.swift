@@ -163,7 +163,7 @@ class ChatViewModel: ObservableObject {
     private func initializeChatService(with settings: AppSettings) {
         guard !settings.currentAPIKey.isEmpty else {
             chatService = nil
-            print("[ChatViewModel] No valid API key, chat service not initialized.")
+            print("[ChatViewModel] No valid API key for provider \(settings.selectedProvider).")
             return
         }
 
@@ -174,6 +174,9 @@ class ChatViewModel: ObservableObject {
         case .anthropic:
             chatService = AnthropicService(apiKey: settings.anthropicKey)
             print("[ChatViewModel] Initialized Anthropic Chat Service with key: \(maskAPIKey(settings.anthropicKey))")
+        case .githubModel :
+            chatService = GitHubModelChatService(apiKey: settings.githubToken)
+            print("[ChatViewModel] Initialized GitHub Model Chat Service with key: \(maskAPIKey(settings.githubToken))")
         }
     }
 
