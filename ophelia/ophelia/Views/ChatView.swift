@@ -11,7 +11,6 @@ import Combine
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var showingSettings = false
-    @State private var tempSettings = AppSettings()
     @FocusState private var fieldIsFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("isDarkMode") private var isDarkMode = false
@@ -19,23 +18,20 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Use the primary gradient as background
+                // Background gradient
                 Color.Theme.primaryGradient(isDarkMode: isDarkMode)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // If no messages yet, show a placeholder
-                    if viewModel.messages.isEmpty && !viewModel.isLoading {
-                        placeholderView
-                            .transition(.opacity.combined(with: .scale))
-                    } else {
-                        // Main chat messages container
-                        ChatMessagesContainer(
-                            messages: viewModel.messages,
-                            isLoading: viewModel.isLoading,
-                            appSettings: viewModel.appSettings
-                        )
-                        .transition(.opacity)
+                    // Chat messages container (auto-scroll enabled)
+                    ChatMessagesContainer(
+                        messages: viewModel.messages,
+                        isLoading: viewModel.isLoading,
+                        appSettings: viewModel.appSettings
+                    )
+                    .transition(.opacity)
+                    .onTapGesture {
+                        dismissKeyboard()
                     }
 
                     // Input field and send button
@@ -55,14 +51,13 @@ struct ChatView: View {
             }
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .onAppear {
-                // Finalize setup on appear
+                // Finalize setup when view appears
                 Task {
                     await viewModel.finalizeSetup()
                 }
             }
-            // Present SettingsView in a NavigationStack to enable navigation links within settings
             .sheet(isPresented: $showingSettings, onDismiss: {
-                // Re-initialize settings after the sheet is dismissed
+                // Re-finalize settings after sheet is dismissed
                 Task { @MainActor in
                     await viewModel.finalizeSetup()
                 }
@@ -75,7 +70,6 @@ struct ChatView: View {
             }
             .navigationTitle("Ophelia")
             .navigationBarTitleDisplayMode(.inline)
-            .tint(.blue)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -86,7 +80,7 @@ struct ChatView: View {
                     }
                 }
             }
-            // Dismiss the keyboard if the scene moves to background
+            .tint(.blue)
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase != .active {
                     fieldIsFocused = false
@@ -95,7 +89,14 @@ struct ChatView: View {
         }
     }
 
-    // Placeholder view shown when there are no messages yet
+    // MARK: - Helpers
+
+    /// Dismiss the keyboard manually
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    /// Placeholder view shown when no messages are present
     private var placeholderView: some View {
         VStack(spacing: 16) {
             Image(systemName: "message")
@@ -113,7 +114,7 @@ struct ChatView: View {
         .padding()
     }
 
-    // Provide a gentle haptic feedback when sending a message
+    /// Provide gentle haptic feedback when sending a message
     private func provideHapticFeedback() {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()

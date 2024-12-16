@@ -412,6 +412,13 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
+    
+    private func updateLastAssistantMessage(with content: String) {
+        if let lastMessage = messages.last, !lastMessage.isUser {
+            lastMessage.text.append(content)
+            objectWillChange.send() // Notify the view to update
+        }
+    }
 
     deinit {
         subscriptions.forEach { $0.cancel() }

@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 
+// MARK: - Message Protocol
 protocol Message {
     var id: UUID { get }
     var text: String { get }
@@ -15,12 +16,13 @@ protocol Message {
     var timestamp: Date { get }
 }
 
-class MutableMessage: ObservableObject, Message, Identifiable {
+// MARK: - MutableMessage Class
+class MutableMessage: ObservableObject, Message, Identifiable, Equatable {
     let id: UUID
     @Published var text: String
     let isUser: Bool
     let timestamp: Date
-    
+
     var originProvider: String?
     var originModel: String?
 
@@ -32,5 +34,15 @@ class MutableMessage: ObservableObject, Message, Identifiable {
         self.timestamp = timestamp
         self.originProvider = originProvider
         self.originModel = originModel
+    }
+
+    // MARK: - Equatable Conformance
+    static func == (lhs: MutableMessage, rhs: MutableMessage) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.text == rhs.text &&
+               lhs.isUser == rhs.isUser &&
+               lhs.timestamp == rhs.timestamp &&
+               lhs.originProvider == rhs.originProvider &&
+               lhs.originModel == rhs.originModel
     }
 }
