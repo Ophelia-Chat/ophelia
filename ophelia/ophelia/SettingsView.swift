@@ -21,33 +21,31 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.Theme.primaryGradient(isDarkMode: appSettings.isDarkMode)
-                    .ignoresSafeArea()
-
-                Form {
-                    providerSection
-                    modelSection
-                    apiKeySection
-                    systemMessageSection
-                    voiceSection
-                    appearanceSection
-                }
-                .scrollContentBackground(.hidden)
-                .background(.ultraThinMaterial)
-            }
-            .navigationTitle("Settings")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        // Ensure all changes are saved before dismissing
-                        saveSettings()
-                        dismiss()
-                    }
+        // Remove NavigationView here to avoid nested toolbars
+        Form {
+            providerSection
+            modelSection
+            apiKeySection
+            systemMessageSection
+            voiceSection
+            appearanceSection
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Settings")
+        // Place the Done button in the toolbar of the parent navigation context
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    // Save changes before dismissing
+                    saveSettings()
+                    dismiss()
                 }
             }
         }
+        .background(
+            Color.Theme.primaryGradient(isDarkMode: appSettings.isDarkMode)
+                .ignoresSafeArea()
+        )
         .onAppear {
             loadSettings()
             systemVoices = VoiceHelper.getAvailableVoices()
@@ -57,7 +55,6 @@ struct SettingsView: View {
             }
         }
         .onChange(of: appSettings) {
-            // Automatically save any changes to the settings as they occur
             saveSettings()
         }
     }
@@ -128,8 +125,9 @@ struct SettingsView: View {
 
     private var systemMessageSection: some View {
         Section {
-            TextField("Enter system message...", text: $appSettings.systemMessage, axis: .vertical)
-                .lineLimit(3...6)
+            TextEditor(text: $appSettings.systemMessage)
+                .frame(minHeight: 100)
+                .padding(.vertical, 4)
         } header: {
             Text("System Message")
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
