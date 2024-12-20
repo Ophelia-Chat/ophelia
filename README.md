@@ -1,9 +1,11 @@
-# Ophelia 🌸
+# Ophelia
 
-Ophelia is a minimalist, SwiftUI-based chatbot interface designed for smooth and engaging conversations. It supports multiple AI providers—OpenAI, Anthropic, and now GitHub-based Azure Models—and offers speech synthesis, customizable settings, and a system message field to tailor the AI’s behavior.
+Ophelia is a minimalist, SwiftUI-based chatbot interface designed for smooth and engaging conversations. It supports multiple AI providers—OpenAI, Anthropic, and GitHub/Azure-based models—and now includes a TestFlight beta for convenient early access. Experience speech synthesis, customizable settings, and a system message field to tailor the AI’s behavior.
 
 > [!NOTE]
-> The app is under active development and debugging. Some features may be unstable or require further configuration.
+> **Now available on TestFlight!**  
+> [Join the beta](https://testflight.apple.com/join/3T2qSW7h) to try out new features and help refine the app.  
+> The app remains under active development and debugging. Some features may be unstable or require further configuration.
 
 ---
 
@@ -56,10 +58,17 @@ Without a valid key/token, the app will not be able to fetch AI responses.
 
 3. **Run the App:**
    Build and run on a simulator or device.
-	-	Go to Settings.
-	-	Select a provider (OpenAI, Anthropic, or GitHub Model).
-	-	Enter the corresponding API key or GitHub token.
-	-	Choose a model, set a system message if desired, and start chatting.
+   - Go to Settings.
+   - Select a provider (OpenAI, Anthropic, or GitHub Model).
+   - Enter the corresponding API key or GitHub token.
+   - Choose a model, set a system message if desired, and start chatting.
+
+---
+
+## TestFlight Beta 🍏
+
+Try out the latest features and help shape the app’s future:
+[Join TestFlight Beta](https://testflight.apple.com/join/3T2qSW7h)
 
 ---
 
