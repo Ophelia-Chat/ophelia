@@ -73,7 +73,11 @@ Without a valid key/token, the app will not be able to fetch AI responses.
 
 ## License 📄
 
-Ophelia is open source under the MIT License.
+Ophelia is open source under the [GNU Affero General Public License v3.0](LICENSE).
+
+[Learn more about AGPL v3](https://www.gnu.org/licenses/agpl-3.0.html)
+
+Any use of this software over a network must provide access to the source code.
 
 Feedback and contributions are welcome! 🤗
 
