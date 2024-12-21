@@ -3,6 +3,7 @@
 //  ophelia
 //
 //  Created by rob on 2024-11-27.
+//  Updated to include efficient token streaming with batching and optional throttling.
 //
 
 import SwiftUI
@@ -53,6 +54,18 @@ class ChatViewModel: ObservableObject {
     private let userDefaults: UserDefaults
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+
+    // MARK: - Token Batching Configuration
+    // Adjust these values to tune performance and responsiveness.
+    // tokenBatchSize: Number of tokens to accumulate before applying them at once.
+    // tokenFlushInterval: Maximum delay before flushing tokens if batch size is not reached.
+    private let tokenBatchSize = 5
+    private let tokenFlushInterval: TimeInterval = 0.2
+
+    // A buffer for newly arrived tokens before they are appended to the last AI message.
+    private var tokenBuffer: String = ""
+    private var lastFlushDate = Date()
+    private var flushTask: Task<Void, Never>? = nil
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -277,17 +290,15 @@ class ChatViewModel: ObservableObject {
 
             var payload = prepareMessagesPayload()
 
-            // Insert the system message as a "system" role message for OpenAI
+            // Insert the system message for OpenAI if provided
             if appSettings.selectedProvider == .openAI, !appSettings.systemMessage.isEmpty {
                 payload.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
             }
 
             let systemMessage: String?
             if appSettings.selectedProvider == .anthropic {
-                // For Anthropic, pass the system message separately
                 systemMessage = appSettings.systemMessage.isEmpty ? nil : appSettings.systemMessage
             } else {
-                // For OpenAI, we've already inserted the system message into payload
                 systemMessage = nil
             }
 
@@ -297,6 +308,7 @@ class ChatViewModel: ObservableObject {
                 system: systemMessage
             )
 
+            // Efficiently handle streaming tokens
             let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
             print("[ChatViewModel] Received response: \(completeResponse)")
 
@@ -317,17 +329,11 @@ class ChatViewModel: ObservableObject {
 
         isLoading = false
     }
-    
+
     private func prepareMessagesPayload() -> [[String: String]] {
-        // Start with an empty array
         var messagesPayload: [[String: String]] = []
-        
-        // Add conversation messages, excluding the last one (which is the current assistant message)
         for message in messages.dropLast() {
-            // Clean the message text to remove any problematic characters
             let cleanedText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Only add non-empty messages
             if !cleanedText.isEmpty {
                 messagesPayload.append([
                     "role": message.isUser ? "user" : "assistant",
@@ -335,7 +341,6 @@ class ChatViewModel: ObservableObject {
                 ])
             }
         }
-        
         return messagesPayload
     }
 
@@ -344,29 +349,67 @@ class ChatViewModel: ObservableObject {
         aiMessage: MutableMessage
     ) async throws -> String {
         var completeResponse = ""
+        var tokenCount = 0
+
         let feedbackGenerator = UIImpactFeedbackGenerator(style: .light) // Light feedback
         let finalFeedbackGenerator = UINotificationFeedbackGenerator()   // Final haptic burst
-        var tokenCount = 0
-        
         feedbackGenerator.prepare()
         finalFeedbackGenerator.prepare()
-        
+
+        // Reset token buffering state each time a new stream starts
+        tokenBuffer = ""
+        lastFlushDate = Date()
+        flushTask?.cancel()
+        flushTask = nil
+
         for try await content in stream {
             if Task.isCancelled { break }
-            aiMessage.text.append(content)
-            completeResponse += content
-            objectWillChange.send()
-            
-            // Generate light haptic feedback every few tokens
+
+            // Accumulate tokens in buffer
+            tokenBuffer.append(content)
+            completeResponse.append(content)
             tokenCount += 1
-            if tokenCount % 5 == 0 {  // Adjust frequency of feedback
+
+            // If we've accumulated enough tokens, flush now
+            if tokenCount % tokenBatchSize == 0 {
+                await flushTokens(aiMessage: aiMessage)
+            } else {
+                // Otherwise, schedule a flush if not already scheduled
+                scheduleFlush(aiMessage: aiMessage)
+            }
+
+            // Haptic feedback every few tokens
+            if tokenCount % 5 == 0 {
                 feedbackGenerator.impactOccurred()
             }
         }
-        
-        // Final success feedback
+
+        // End of stream, flush any remaining tokens
+        await flushTokens(aiMessage: aiMessage, force: true)
         finalFeedbackGenerator.notificationOccurred(.success)
         return completeResponse
+    }
+
+    /// Schedules a flush after tokenFlushInterval if no flush occurs sooner.
+    private func scheduleFlush(aiMessage: MutableMessage) {
+        flushTask?.cancel()
+        flushTask = Task { [weak self] in
+            guard let self = self else { return }
+            try? await Task.sleep(nanoseconds: UInt64(self.tokenFlushInterval * 1_000_000_000))
+            await self.flushTokens(aiMessage: aiMessage)
+        }
+    }
+
+    /// Applies buffered tokens to the aiMessage text and clears the buffer.
+    private func flushTokens(aiMessage: MutableMessage, force: Bool = false) async {
+        guard force || !tokenBuffer.isEmpty else { return }
+
+        let tokensToApply = tokenBuffer
+        tokenBuffer = ""
+
+        aiMessage.text.append(tokensToApply)
+        objectWillChange.send()
+        lastFlushDate = Date()
     }
 
     private func handleError(_ error: Error) {
@@ -415,11 +458,11 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
-    
+
     private func updateLastAssistantMessage(with content: String) {
         if let lastMessage = messages.last, !lastMessage.isUser {
             lastMessage.text.append(content)
-            objectWillChange.send() // Notify the view to update
+            objectWillChange.send()
         }
     }
 

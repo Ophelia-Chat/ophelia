@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-latest
     env:
       XCODE_VERSION_PATH: "/Applications/Xcode_16.1.app"
-      WORKSPACE: "ophelia/ophelia.xcodeproj/project.xcworkspace"
+      WORKSPACE: "ophelia.xcodeproj/project.xcworkspace"
       SCHEME: "ophelia"
       DESTINATION: "platform=iOS Simulator,name=iPhone 16,OS=18.1"
       CACHE_KEY_PREFIX: "ophelia-xcode-cache"
@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ env.CACHE_KEY_PREFIX }}-${{ runner.os }}-${{ hashFiles('ophelia/ophelia.xcodeproj/**', 'Package.resolved') }}
+          key: ${{ env.CACHE_KEY_PREFIX }}-${{ runner.os }}-${{ hashFiles('ophelia.xcodeproj/**', 'Package.resolved') }}
           restore-keys: |
             ${{ env.CACHE_KEY_PREFIX }}-${{ runner.os }}-
 
@@ -63,7 +63,7 @@ jobs:
     needs: build
     env:
       XCODE_VERSION_PATH: "/Applications/Xcode_16.1.app"
-      WORKSPACE: "ophelia/ophelia.xcodeproj/project.xcworkspace"
+      WORKSPACE: "ophelia.xcodeproj/project.xcworkspace"
       SCHEME: "ophelia"
       DESTINATION: "platform=iOS Simulator,name=iPhone 16,OS=18.1"
 

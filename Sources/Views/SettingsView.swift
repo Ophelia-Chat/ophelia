@@ -2,7 +2,8 @@
 //  SettingsView.swift
 //  ophelia
 //
-//  Created by rob on 2024-11-27.
+//  Originally created by rob on 2024-11-27.
+//  Updated to preserve selected model across provider changes and settings navigation.
 //
 
 import SwiftUI
@@ -76,11 +77,13 @@ struct SettingsView: View {
                 saveSettings()
             }
         }
-        .onChange(of: appSettings) {
+        // Save settings whenever appSettings change, ensuring persistence of the selected model.
+        .onChange(of: appSettings) { oldSettings, newSettings in
             saveSettings()
         }
     }
 
+    // MARK: - Provider Section
     private var providerSection: some View {
         Section {
             Picker("Provider", selection: $appSettings.selectedProvider) {
@@ -89,8 +92,15 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: appSettings.selectedProvider) { _, newValue in
-                appSettings.selectedModelId = newValue.defaultModel.id
+            // Refined onChange logic:
+            // Only reset the model if the currently selected model is not valid for the new provider.
+            .onChange(of: appSettings.selectedProvider) { oldProvider, newProvider in
+                let availableModels = newProvider.availableModels
+                // Check if current model is still valid under the new provider
+                if !availableModels.contains(where: { $0.id == appSettings.selectedModelId }) {
+                    // If not valid, revert to the provider’s default model
+                    appSettings.selectedModelId = newProvider.defaultModel.id
+                }
             }
         } header: {
             Text("Chat Provider")
@@ -98,11 +108,14 @@ struct SettingsView: View {
         } footer: {
             Text(appSettings.selectedProvider == .openAI ?
                  "Uses OpenAI's GPT models" :
-                 "Uses Anthropic's Claude models")
+                 appSettings.selectedProvider == .anthropic ?
+                 "Uses Anthropic's Claude models" :
+                 "Uses GitHub/Azure-based model endpoints.")
             .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         }
     }
 
+    // MARK: - Model Section
     private var modelSection: some View {
         Section {
             NavigationLink {
@@ -124,6 +137,7 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - API Key Section
     private var apiKeySection: some View {
         Section {
             switch appSettings.selectedProvider {
@@ -149,11 +163,12 @@ struct SettingsView: View {
             case .anthropic:
                 Text("Enter your Anthropic API key from console.anthropic.com")
             case .githubModel:
-                Text("Enter your GitHub token. This token gives access to Azure-based models on your dev plan.")
+                Text("Enter your GitHub token for Azure-based model access.")
             }
         }
     }
 
+    // MARK: - System Message Section
     private var systemMessageSection: some View {
         Section {
             TextEditor(text: $appSettings.systemMessage)
@@ -168,6 +183,7 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Voice Section
     private var voiceSection: some View {
         Section {
             Picker("Voice Provider", selection: $appSettings.selectedVoiceProvider) {
@@ -204,6 +220,7 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Appearance Section
     private var appearanceSection: some View {
         Section {
             Toggle("Dark Mode", isOn: $appSettings.isDarkMode)
@@ -214,7 +231,7 @@ struct SettingsView: View {
                 .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         } footer: {
             Text("Dark Mode is currently locked.")
-                .foregroundColor(.secondary) // To do
+                .foregroundColor(.secondary)
         }
     }
 

@@ -3,6 +3,7 @@
 //  ophelia
 //
 //  Created by rob on 2024-11-27.
+//  Updated to ensure proper Markdown layout constraints and prevent scrolling issues.
 //
 
 import SwiftUI
@@ -19,10 +20,9 @@ struct MessageRow: View {
 
     var body: some View {
         VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-            // Message header with timestamp and metadata
+            // Display message header (provider, model, timestamp)
             messageHeader
             
-            // Message content with appropriate styling
             HStack(alignment: .bottom, spacing: 12) {
                 if message.isUser {
                     Spacer(minLength: 60)
@@ -34,7 +34,8 @@ struct MessageRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .animation(.easeInOut(duration: 0.2), value: message.text) // Smooth animation
+        // Animate layout changes smoothly as text updates
+        .animation(.easeInOut(duration: 0.2), value: message.text)
     }
     
     // MARK: - Message Header
@@ -64,10 +65,13 @@ struct MessageRow: View {
 
     // MARK: - User Message Content
     private var userMessageContent: some View {
+        // Applying .fixedSize and .frame to ensure Markdown wraps and doesn't cause layout issues.
         Markdown(message.text)
             .markdownTextStyle {
                 ForegroundColor(Color.white)
             }
+            .fixedSize(horizontal: false, vertical: true) // Allows vertical expansion but no infinite horizontal growth
+            .frame(maxWidth: .infinity, alignment: .leading) // Ensures text wraps within the available width
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(Color.Theme.accentGradient(isDarkMode: isDarkMode))
@@ -77,7 +81,10 @@ struct MessageRow: View {
 
     // MARK: - Assistant Message Content
     private var assistantMessageContent: some View {
+        // Similar layout constraints for assistant messages to ensure consistent behavior.
         Markdown(message.text)
+            .fixedSize(horizontal: false, vertical: true) // Prevents infinite horizontal growth
+            .frame(maxWidth: .infinity, alignment: .leading) // Enforces wrapping within view bounds
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
