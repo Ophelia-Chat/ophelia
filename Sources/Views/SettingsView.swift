@@ -67,7 +67,6 @@ struct SettingsView: View {
         }
         .background(
             Color.Theme.primaryGradient(isDarkMode: appSettings.isDarkMode)
-                .ignoresSafeArea()
         )
         .onAppear {
             loadSettings()

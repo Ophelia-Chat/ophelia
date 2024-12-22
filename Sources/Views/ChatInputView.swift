@@ -58,7 +58,6 @@ struct ChatInputView: View {
             // A background that ensures the input bar looks good with the system background
             Rectangle()
                 .fill(Color(.systemBackground))
-                .ignoresSafeArea(edges: .bottom)
         }
     }
 }

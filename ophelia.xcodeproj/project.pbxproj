@@ -12,7 +12,6 @@
 		1914CA532D16452900E275BF /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA492D16452900E275BF /* ModelPickerView.swift */; };
 		1914CA542D16452900E275BF /* opheliaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4E2D16452900E275BF /* opheliaApp.swift */; };
 		1914CA552D16452900E275BF /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4C2D16452900E275BF /* ChatViewModel.swift */; };
-		1914CA562D16452900E275BF /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA432D16452900E275BF /* ChatMainView.swift */; };
 		1914CA572D16452900E275BF /* GitHubModelChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3A2D16452900E275BF /* GitHubModelChatService.swift */; };
 		1914CA582D16452900E275BF /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA382D16452900E275BF /* AnthropicService.swift */; };
 		1914CA592D16452900E275BF /* OpenAIVoiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3D2D16452900E275BF /* OpenAIVoiceError.swift */; };
@@ -36,7 +35,6 @@
 		1914CA6B2D16452900E275BF /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA492D16452900E275BF /* ModelPickerView.swift */; };
 		1914CA6C2D16452900E275BF /* opheliaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4E2D16452900E275BF /* opheliaApp.swift */; };
 		1914CA6D2D16452900E275BF /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4C2D16452900E275BF /* ChatViewModel.swift */; };
-		1914CA6E2D16452900E275BF /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA432D16452900E275BF /* ChatMainView.swift */; };
 		1914CA6F2D16452900E275BF /* GitHubModelChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3A2D16452900E275BF /* GitHubModelChatService.swift */; };
 		1914CA702D16452900E275BF /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA382D16452900E275BF /* AnthropicService.swift */; };
 		1914CA712D16452900E275BF /* OpenAIVoiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3D2D16452900E275BF /* OpenAIVoiceError.swift */; };
@@ -59,7 +57,6 @@
 		1914CA822D16452900E275BF /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA492D16452900E275BF /* ModelPickerView.swift */; };
 		1914CA832D16452900E275BF /* opheliaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4E2D16452900E275BF /* opheliaApp.swift */; };
 		1914CA842D16452900E275BF /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA4C2D16452900E275BF /* ChatViewModel.swift */; };
-		1914CA852D16452900E275BF /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA432D16452900E275BF /* ChatMainView.swift */; };
 		1914CA862D16452900E275BF /* GitHubModelChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3A2D16452900E275BF /* GitHubModelChatService.swift */; };
 		1914CA872D16452900E275BF /* AnthropicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA382D16452900E275BF /* AnthropicService.swift */; };
 		1914CA882D16452900E275BF /* OpenAIVoiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA3D2D16452900E275BF /* OpenAIVoiceError.swift */; };
@@ -80,9 +77,15 @@
 		1914CA972D16452900E275BF /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA472D16452900E275BF /* ChatView.swift */; };
 		1914CA982D16452900E275BF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1914CA4B2D16452900E275BF /* Assets.xcassets */; };
 		19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 19517EB22D0D2752008F81B3 /* MarkdownUI */; };
+		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
+		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
+		19C00C1A2D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19CF5C522D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C532D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C542D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
+		19CF5C5B2D174454004C011C /* KeyboardAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */; };
+		19CF5C5C2D174454004C011C /* KeyboardAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */; };
+		19CF5C5D2D174454004C011C /* KeyboardAdaptive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,7 +118,6 @@
 		1914CA402D16452900E275BF /* ChatHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHeaderView.swift; sourceTree = "<group>"; };
 		1914CA412D16452900E275BF /* ChatInputContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputContainer.swift; sourceTree = "<group>"; };
 		1914CA422D16452900E275BF /* ChatInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputView.swift; sourceTree = "<group>"; };
-		1914CA432D16452900E275BF /* ChatMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMainView.swift; sourceTree = "<group>"; };
 		1914CA442D16452900E275BF /* ChatMessagesContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesContainer.swift; sourceTree = "<group>"; };
 		1914CA452D16452900E275BF /* ChatMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessagesView.swift; sourceTree = "<group>"; };
 		1914CA462D16452900E275BF /* ChatSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSettingsSheet.swift; sourceTree = "<group>"; };
@@ -130,7 +132,9 @@
 		1976BD3F2CF14D5F0066972B /* ophelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ophelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD512CF14D600066972B /* opheliaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD5B2CF14D600066972B /* opheliaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		19C00C172D17886C00DBCAA0 /* ChatMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMainView.swift; sourceTree = "<group>"; };
 		19CF5C512D164D98004C011C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAdaptive.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,10 +192,11 @@
 				1914CA402D16452900E275BF /* ChatHeaderView.swift */,
 				1914CA412D16452900E275BF /* ChatInputContainer.swift */,
 				1914CA422D16452900E275BF /* ChatInputView.swift */,
-				1914CA432D16452900E275BF /* ChatMainView.swift */,
 				1914CA442D16452900E275BF /* ChatMessagesContainer.swift */,
+				19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */,
 				1914CA452D16452900E275BF /* ChatMessagesView.swift */,
 				1914CA462D16452900E275BF /* ChatSettingsSheet.swift */,
+				19C00C172D17886C00DBCAA0 /* ChatMainView.swift */,
 				1914CA472D16452900E275BF /* ChatView.swift */,
 				1914CA482D16452900E275BF /* MessageRow.swift */,
 				19CF5C512D164D98004C011C /* SettingsView.swift */,
@@ -375,17 +380,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19CF5C5C2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA522D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA532D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA542D16452900E275BF /* opheliaApp.swift in Sources */,
 				1914CA552D16452900E275BF /* ChatViewModel.swift in Sources */,
-				1914CA562D16452900E275BF /* ChatMainView.swift in Sources */,
 				1914CA572D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA582D16452900E275BF /* AnthropicService.swift in Sources */,
 				1914CA592D16452900E275BF /* OpenAIVoiceError.swift in Sources */,
 				1914CA5A2D16452900E275BF /* ChatSettingsSheet.swift in Sources */,
 				19CF5C542D164D98004C011C /* SettingsView.swift in Sources */,
 				1914CA5B2D16452900E275BF /* ChatHeaderView.swift in Sources */,
+				19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */,
 				1914CA5C2D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA5D2D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA5E2D16452900E275BF /* TypingIndicator.swift in Sources */,
@@ -406,17 +412,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19CF5C5B2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA812D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA822D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA832D16452900E275BF /* opheliaApp.swift in Sources */,
 				1914CA842D16452900E275BF /* ChatViewModel.swift in Sources */,
-				1914CA852D16452900E275BF /* ChatMainView.swift in Sources */,
 				1914CA862D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA872D16452900E275BF /* AnthropicService.swift in Sources */,
 				1914CA882D16452900E275BF /* OpenAIVoiceError.swift in Sources */,
 				1914CA892D16452900E275BF /* ChatSettingsSheet.swift in Sources */,
 				19CF5C532D164D98004C011C /* SettingsView.swift in Sources */,
 				1914CA8A2D16452900E275BF /* ChatHeaderView.swift in Sources */,
+				19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */,
 				1914CA8B2D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA8C2D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA8D2D16452900E275BF /* TypingIndicator.swift in Sources */,
@@ -437,17 +444,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19CF5C5D2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA6A2D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA6B2D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA6C2D16452900E275BF /* opheliaApp.swift in Sources */,
 				1914CA6D2D16452900E275BF /* ChatViewModel.swift in Sources */,
-				1914CA6E2D16452900E275BF /* ChatMainView.swift in Sources */,
 				1914CA6F2D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA702D16452900E275BF /* AnthropicService.swift in Sources */,
 				1914CA712D16452900E275BF /* OpenAIVoiceError.swift in Sources */,
 				1914CA722D16452900E275BF /* ChatSettingsSheet.swift in Sources */,
 				19CF5C522D164D98004C011C /* SettingsView.swift in Sources */,
 				1914CA732D16452900E275BF /* ChatHeaderView.swift in Sources */,
+				19C00C1A2D17887100DBCAA0 /* ChatMainView.swift in Sources */,
 				1914CA742D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA752D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA762D16452900E275BF /* TypingIndicator.swift in Sources */,

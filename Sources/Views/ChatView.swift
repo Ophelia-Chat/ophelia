@@ -8,115 +8,77 @@
 import SwiftUI
 import Combine
 
+@available(iOS 18.0, *)
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
+
+    // Shows Settings sheet
     @State private var showingSettings = false
-    @FocusState private var fieldIsFocused: Bool
+
+    // Watches app’s lifecycle states (active/inactive)
     @Environment(\.scenePhase) private var scenePhase
+
+    // Tracks dark mode from UserDefaults
     @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
+                // A background gradient
                 Color.Theme.primaryGradient(isDarkMode: isDarkMode)
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(edges: .top)
 
-                VStack(spacing: 0) {
-                    // Chat messages container (auto-scroll enabled)
-                    ChatMessagesContainer(
-                        messages: viewModel.messages,
-                        isLoading: viewModel.isLoading,
-                        appSettings: viewModel.appSettings
-                    )
-                    .transition(.opacity)
-                    .onTapGesture {
-                        dismissKeyboard()
-                    }
-
-                    // Input field and send button
-                    ChatInputContainer(
-                        inputText: $viewModel.inputText,
-                        isDisabled: viewModel.appSettings.currentAPIKey.isEmpty,
-                        onSend: {
-                            Task { @MainActor in
-                                viewModel.sendMessage()
-                                fieldIsFocused = false
-                                provideHapticFeedback()
-                            }
-                        }
-                    )
-                    .padding(.top, 4)
-                }
+                // Main chat layout (messages + input bar) in ChatMainView
+                ChatMainView(
+                    viewModel: viewModel,
+                    showingSettings: $showingSettings,
+                    tempSettings: .constant(viewModel.appSettings)
+                )
             }
             .preferredColorScheme(isDarkMode ? .dark : .light)
+
+            // Runs final setup each time the view appears
             .onAppear {
-                // Finalize setup when view appears
                 Task {
                     await viewModel.finalizeSetup()
                 }
             }
+
+            // Presents Settings, re-initializes the chat once user closes it
             .sheet(isPresented: $showingSettings, onDismiss: {
-                // Re-finalize settings after sheet is dismissed
-                Task { @MainActor in
+                Task {
+                    // Re-load from disk so any changed provider/keys are recognized
                     await viewModel.finalizeSetup()
                 }
             }) {
                 NavigationStack {
-                    SettingsView(clearMessages: {
+                    // Pass your existing clearMessages closure
+                    SettingsView {
                         viewModel.clearMessages()
-                    })
+                    }
                 }
             }
+
+            // Basic nav bar
             .navigationTitle("Ophelia")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
+                    Button {
                         showingSettings = true
-                    }) {
+                    } label: {
                         Image(systemName: "gear")
-                            .font(.system(size: 20))
                     }
                 }
             }
             .tint(.blue)
-            .onChange(of: scenePhase) { oldPhase, newPhase in
+
+            // If the app goes inactive, optionally do cleanup
+            .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active {
-                    fieldIsFocused = false
+                    // e.g. fieldIsFocused = false
                 }
             }
         }
-    }
-
-    // MARK: - Helpers
-
-    /// Dismiss the keyboard manually
-    private func dismissKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-
-    /// Placeholder view shown when no messages are present
-    private var placeholderView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "message")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-
-            Text("No messages yet.")
-                .font(.headline)
-                .foregroundColor(.secondary)
-
-            Text("Type a message below to start the conversation.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-    }
-
-    /// Provide gentle haptic feedback when sending a message
-    private func provideHapticFeedback() {
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
     }
 }

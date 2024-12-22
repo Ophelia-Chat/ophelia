@@ -2,99 +2,92 @@
 //  ChatMessagesContainer.swift
 //  ophelia
 //
-//  This file displays chat messages in a scrollable view and manages
-//  smooth auto-scrolling for AI token streaming.
+//  Revised to remain pinned at bottom on new messages,
+//  yet still allow the user to scroll freely if desired.
 //
-//  Key Features:
-//  1. Uses ScrollViewReader to programmatically scroll to the bottom.
-//  2. Declares a sentinel view (id: "bottomID") at the end of the list.
-//  3. Maintains a local "autoScroll" state to decide whether to stay pinned
-//     to the bottom or allow the user to freely scroll.
-//  4. Respects user interactions: if the user drags up, auto-scroll is turned off.
-//     The user can scroll back down or provide another mechanism to re-enable it.
-//
-
 import SwiftUI
 
+@available(iOS 18.0, *)
 struct ChatMessagesContainer: View {
+    /// The array of messages to display.
     let messages: [MutableMessage]
+    
+    /// Indicates whether the AI is generating a response (e.g., "typing").
     let isLoading: Bool
+    
+    /// Global app settings, in case you need to style based on them.
     let appSettings: AppSettings
 
-    // Tracks whether we should automatically scroll to the bottom.
-    // Starts as true so that new messages or tokens keep the view pinned at the bottom.
+    /// Tracks whether the view automatically scrolls to the bottom on new messages.
     @State private var autoScroll = true
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                // We use a LazyVStack to efficiently render messages.
                 LazyVStack(spacing: 8) {
                     ForEach(messages) { message in
                         MessageRow(message: message, appSettings: appSettings)
                     }
 
-                    // Show typing indicator (e.g., animated dots) if the AI is "typing."
                     if isLoading {
                         TypingIndicator()
-                            .padding(.top, 8)
                     }
 
-                    // Invisible anchor to which we scroll.
                     Color.clear
                         .frame(height: 1)
                         .id("bottomID")
                 }
                 .padding(.vertical, 8)
-                // Auto-scroll on initial appear.
+                // 1) Scroll to bottom on first appear
                 .onAppear {
                     scrollToBottom(proxy: proxy, animated: false)
                 }
-                // Auto-scroll whenever messages change, if autoScroll is still true.
-                .onChange(of: messages) { _, _ in
+                // 2) Auto-scroll if the total message count changes
+                .onChange(of: messages.count) { oldCount, newCount in
                     if autoScroll {
                         scrollToBottom(proxy: proxy)
                     }
                 }
-                // Optionally, also scroll when loading state changes (if you want to follow the typing indicator).
-                .onChange(of: isLoading) { _, _ in
+                // 3) Auto-scroll if isLoading changes
+                .onChange(of: isLoading) { wasLoading, isLoadingNow in
                     if autoScroll {
                         scrollToBottom(proxy: proxy)
                     }
                 }
-                // Gesture to detect manual user scrolling. If the user drags up, disable auto-scroll.
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            // If user drags significantly upward, disable auto-scrolling.
-                            if value.translation.height > 0 {
-                                autoScroll = false
-                            }
-                        }
-                )
+                // 4) Auto-scroll on partial token updates
+                //    if the last message’s text changes
+                .onChange(of: messages.last?.text) { oldText, newText in
+                    guard autoScroll else { return }
+                    // Add slight delay so layout can recalc the new size
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        scrollToBottom(proxy: proxy)
+                    }
+                }
             }
-            // Tap anywhere in the scroll view to dismiss keyboard (optional).
+            // 5) OPTIONAL: remove or comment out if you don’t want to dismiss the keyboard on tap
+            /*
             .gesture(
                 TapGesture()
                     .onEnded {
                         dismissKeyboard()
                     }
             )
+            */
         }
     }
 
-    // MARK: - Scroll Helper
+    // MARK: - Helpers
 
-    /// Smoothly scroll to the bottom anchor (id: "bottomID").
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
         withAnimation(animated ? .easeInOut(duration: 0.3) : nil) {
             proxy.scrollTo("bottomID", anchor: .bottom)
         }
     }
 
-    // MARK: - Keyboard Dismiss Helper
     private func dismissKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
-                                        to: nil, from: nil, for: nil)
+                                        to: nil,
+                                        from: nil,
+                                        for: nil)
     }
 }

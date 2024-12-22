@@ -25,7 +25,7 @@ struct opheliaApp: App {
                     // The main view of your app, now displayed after initialization is complete
                     ChatView()
                         .tint(.blue)
-                        .preferredColorScheme(.light)
+                        //.preferredColorScheme(.light)
                 } else {
                     // A lightweight loading view shown until the app finishes background setup
                     ProgressView("Loading...")
