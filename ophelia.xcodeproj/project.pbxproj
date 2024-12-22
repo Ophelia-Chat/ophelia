@@ -80,9 +80,6 @@
 		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C1A2D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
-		19C00C1C2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
-		19C00C1D2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
-		19C00C1E2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
 		19CF5C522D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C532D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C542D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
@@ -358,7 +355,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19C00C1C2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA512D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -367,7 +363,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19C00C1D2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA982D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -376,7 +371,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19C00C1E2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA692D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -626,7 +620,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H7F9WN89C6;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				"INFOPLIST_FILE[sdk=*]" = "$(SRCROOT)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ophelia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -656,7 +651,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H7F9WN89C6;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				"INFOPLIST_FILE[sdk=*]" = "$(SRCROOT)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Ophelia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

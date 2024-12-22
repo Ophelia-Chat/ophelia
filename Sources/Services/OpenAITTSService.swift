@@ -6,6 +6,7 @@
 import Foundation
 import AVFoundation
 
+@MainActor
 public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     private var apiKey: String
     private var voiceId: String
@@ -27,14 +28,12 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     }
 
     public init(apiKey: String, voiceId: String = "alloy") {
-        self.apiKey = apiKey
+        self.apiKey  = apiKey
         self.voiceId = voiceId
         super.init()
-        // Configure audio session and notifications on main actor
-        Task { @MainActor in
-            setupAudioSession()
-            setupNotifications()
-        }
+        // Since the entire class is @MainActor, we can safely call these here:
+        setupAudioSession()
+        setupNotifications()
     }
 
     public func updateVoice(_ newVoiceId: String) {
@@ -45,11 +44,8 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         guard !text.isEmpty else { return }
 
         stopOnMain()
-
-        // Use MainActor.run to ensure state updates on main thread
-        await MainActor.run {
-            state = .preparing
-        }
+        // We’re on the main actor, so we can directly set the state:
+        state = .preparing
 
         let task = Task {
             do {
@@ -71,9 +67,9 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         stopOnMain()
     }
 
-    // nonisolated so deinit can call it directly without capturing self in async context
+    // Marked as nonisolated so deinit can call it without capturing self in an async context
     nonisolated private func stopOnMain() {
-        // Dispatch main actor work without capturing self weakly in deinit
+        // Hop back onto the main actor to update state and clean up
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.state = .cancelled
@@ -83,7 +79,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         }
     }
 
-    @MainActor
     private func cleanup() {
         player?.stop()
         player = nil
@@ -97,7 +92,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         state = .idle
     }
 
-    @MainActor
     private func setupAudioSession() {
         do {
             try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
@@ -106,7 +100,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         }
     }
 
-    @MainActor
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
             self,
@@ -116,6 +109,8 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         )
     }
 
+    // These fetching methods do network calls. They are still under @MainActor,
+    // but the actual suspension points (URLSession) move work off the main thread under the hood.
     private func fetchAudioWithRetries(for text: String) async throws -> Data {
         var attempt = 0
         var backoff = initialBackoff
@@ -187,7 +182,6 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         }
     }
 
-    @MainActor
     private func playAudioData(_ audioData: Data) async throws {
         guard state == .preparing else { return }
 
@@ -219,7 +213,7 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
             throw VoiceError.playbackFailed
         }
 
-        // Poll until finished or cancelled
+        // Wait until playback finishes or is cancelled
         while player.isPlaying && state == .playing {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
@@ -230,28 +224,25 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
     }
 
     @objc private func handleInterruption(notification: Notification) {
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
+        // Because our class is @MainActor, this is also main-thread safe
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
 
-            guard let userInfo = notification.userInfo,
-                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-                return
+        switch type {
+        case .began:
+            print("[OpenAITTS] Audio session interrupted")
+            stopOnMain()
+        case .ended:
+            if let options = userInfo[AVAudioSessionInterruptionOptionKey].flatMap({ AVAudioSession.InterruptionOptions(rawValue: $0 as? UInt ?? 0) }),
+               options.contains(.shouldResume),
+               state == .playing {
+                player?.play()
             }
-
-            switch type {
-            case .began:
-                print("[OpenAITTS] Audio session interrupted")
-                self.stopOnMain()
-            case .ended:
-                if let options = userInfo[AVAudioSessionInterruptionOptionKey].flatMap({ AVAudioSession.InterruptionOptions(rawValue: $0 as? UInt ?? 0) }),
-                   options.contains(.shouldResume),
-                   self.state == .playing {
-                    self.player?.play()
-                }
-            @unknown default:
-                break
-            }
+        @unknown default:
+            break
         }
     }
 
@@ -259,9 +250,9 @@ public final class OpenAITTSService: NSObject, VoiceServiceProtocol {
         NotificationCenter.default.removeObserver(self)
         // In deinit, do not call stopOnMain() or any main-actor method.
         // Just do minimal cleanup without async or main-actor hopping.
-        player?.stop()
-        player = nil
-        audioDelegate = nil
+        // player?.stop()
+        // player = nil
+        // audioDelegate = nil
     }
 }
 

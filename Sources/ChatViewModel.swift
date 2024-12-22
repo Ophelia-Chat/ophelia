@@ -467,8 +467,8 @@ class ChatViewModel: ObservableObject {
     }
 
     deinit {
-        subscriptions.forEach { $0.cancel() }
-        subscriptions.removeAll()
+        //subscriptions.forEach { $0.cancel() }
+        //subscriptions.removeAll()
         print("[ChatViewModel] Deinitialized.")
     }
 }
