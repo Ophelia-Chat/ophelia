@@ -80,6 +80,9 @@
 		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C1A2D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
+		19C00C1C2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
+		19C00C1D2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
+		19C00C1E2D18557F00DBCAA0 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19C00C1B2D18557F00DBCAA0 /* Info.plist */; };
 		19CF5C522D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C532D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
 		19CF5C542D164D98004C011C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CF5C512D164D98004C011C /* SettingsView.swift */; };
@@ -133,6 +136,7 @@
 		1976BD512CF14D600066972B /* opheliaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD5B2CF14D600066972B /* opheliaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19C00C172D17886C00DBCAA0 /* ChatMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMainView.swift; sourceTree = "<group>"; };
+		19C00C1B2D18557F00DBCAA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		19CF5C512D164D98004C011C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		19CF5C5A2D17444C004C011C /* KeyboardAdaptive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAdaptive.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -223,6 +227,7 @@
 		1976BD362CF14D5F0066972B = {
 			isa = PBXGroup;
 			children = (
+				19C00C1B2D18557F00DBCAA0 /* Info.plist */,
 				1914CA502D16452900E275BF /* Sources */,
 				1976BD402CF14D5F0066972B /* Products */,
 			);
@@ -353,6 +358,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19C00C1C2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA512D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -361,6 +367,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19C00C1D2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA982D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -369,6 +376,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19C00C1E2D18557F00DBCAA0 /* Info.plist in Resources */,
 				1914CA692D16452900E275BF /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -548,6 +556,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -603,6 +612,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -632,7 +642,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ai.kroonen.ophelia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -662,7 +672,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ai.kroonen.ophelia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
