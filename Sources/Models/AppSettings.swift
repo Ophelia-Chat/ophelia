@@ -85,7 +85,7 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
 struct AppSettings: Codable, Equatable {
     var openAIKey: String = ""
     var anthropicKey: String = ""
-    var githubToken: String = "" // GitHub token
+    var githubToken: String = ""
 
     var selectedProvider: ChatProvider = .openAI
     var selectedModelId: String

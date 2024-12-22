@@ -290,8 +290,10 @@ class ChatViewModel: ObservableObject {
 
             var payload = prepareMessagesPayload()
 
-            // Insert the system message for OpenAI if provided
-            if appSettings.selectedProvider == .openAI, !appSettings.systemMessage.isEmpty {
+            // Insert the system message if the provider is OpenAI **or** GitHub
+            if (appSettings.selectedProvider == .openAI || appSettings.selectedProvider == .githubModel),
+               !appSettings.systemMessage.isEmpty
+            {
                 payload.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
             }
 
