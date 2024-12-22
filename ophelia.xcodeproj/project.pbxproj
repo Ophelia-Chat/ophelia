@@ -76,6 +76,9 @@
 		1914CA962D16452900E275BF /* ChatMessagesContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA442D16452900E275BF /* ChatMessagesContainer.swift */; };
 		1914CA972D16452900E275BF /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1914CA472D16452900E275BF /* ChatView.swift */; };
 		1914CA982D16452900E275BF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1914CA4B2D16452900E275BF /* Assets.xcassets */; };
+		191B6B942D1878C6006AD239 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B932D1878BE006AD239 /* AboutView.swift */; };
+		191B6B952D1878C6006AD239 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B932D1878BE006AD239 /* AboutView.swift */; };
+		191B6B962D1878C6006AD239 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B932D1878BE006AD239 /* AboutView.swift */; };
 		19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 19517EB22D0D2752008F81B3 /* MarkdownUI */; };
 		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
@@ -129,6 +132,7 @@
 		1914CA4D2D16452900E275BF /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		1914CA4E2D16452900E275BF /* opheliaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = opheliaApp.swift; sourceTree = "<group>"; };
 		1914CA4F2D16452900E275BF /* TypingIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicator.swift; sourceTree = "<group>"; };
+		191B6B932D1878BE006AD239 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		1976BD3F2CF14D5F0066972B /* ophelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ophelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD512CF14D600066972B /* opheliaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD5B2CF14D600066972B /* opheliaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -199,6 +203,7 @@
 				1914CA462D16452900E275BF /* ChatSettingsSheet.swift */,
 				19C00C172D17886C00DBCAA0 /* ChatMainView.swift */,
 				1914CA472D16452900E275BF /* ChatView.swift */,
+				191B6B932D1878BE006AD239 /* AboutView.swift */,
 				1914CA482D16452900E275BF /* MessageRow.swift */,
 				19CF5C512D164D98004C011C /* SettingsView.swift */,
 				1914CA492D16452900E275BF /* ModelPickerView.swift */,
@@ -386,6 +391,7 @@
 				1914CA522D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA532D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA542D16452900E275BF /* opheliaApp.swift in Sources */,
+				191B6B952D1878C6006AD239 /* AboutView.swift in Sources */,
 				1914CA552D16452900E275BF /* ChatViewModel.swift in Sources */,
 				1914CA572D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA582D16452900E275BF /* AnthropicService.swift in Sources */,
@@ -418,6 +424,7 @@
 				1914CA812D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA822D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA832D16452900E275BF /* opheliaApp.swift in Sources */,
+				191B6B942D1878C6006AD239 /* AboutView.swift in Sources */,
 				1914CA842D16452900E275BF /* ChatViewModel.swift in Sources */,
 				1914CA862D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA872D16452900E275BF /* AnthropicService.swift in Sources */,
@@ -450,6 +457,7 @@
 				1914CA6A2D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA6B2D16452900E275BF /* ModelPickerView.swift in Sources */,
 				1914CA6C2D16452900E275BF /* opheliaApp.swift in Sources */,
+				191B6B962D1878C6006AD239 /* AboutView.swift in Sources */,
 				1914CA6D2D16452900E275BF /* ChatViewModel.swift in Sources */,
 				1914CA6F2D16452900E275BF /* GitHubModelChatService.swift in Sources */,
 				1914CA702D16452900E275BF /* AnthropicService.swift in Sources */,

@@ -33,6 +33,7 @@ struct SettingsView: View {
             systemMessageSection
             voiceSection
             appearanceSection
+            aboutSection
 
             Section {
                 Button(role: .destructive) {
@@ -231,6 +232,21 @@ struct SettingsView: View {
         } footer: {
             Text("Dark Mode is currently locked.")
                 .foregroundColor(.secondary)
+        }
+    }
+    
+    // MARK: - About Section
+    private var aboutSection: some View {
+        Section {
+            NavigationLink(destination: AboutView()) {
+                Text("About")
+            }
+        } header: {
+            Text("About")
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+        } footer: {
+            Text("Learn more about Ophelia, including version and credits.")
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
         }
     }
 
