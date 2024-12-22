@@ -45,18 +45,15 @@ struct ChatView: View {
             }
 
             // Presents Settings, re-initializes the chat once user closes it
-            .sheet(isPresented: $showingSettings, onDismiss: {
-                Task {
-                    // Re-load from disk so any changed provider/keys are recognized
-                    await viewModel.finalizeSetup()
-                }
-            }) {
-                NavigationStack {
-                    // Pass your existing clearMessages closure
-                    SettingsView {
+            .sheet(isPresented: $showingSettings) {
+                ChatSettingsSheet(
+                    tempSettings: .constant(viewModel.appSettings),
+                    showingSettings: $showingSettings,
+                    chatViewModel: viewModel,
+                    clearMessages: {
                         viewModel.clearMessages()
                     }
-                }
+                )
             }
 
             // Basic nav bar

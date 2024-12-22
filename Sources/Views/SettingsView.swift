@@ -10,11 +10,15 @@ import SwiftUI
 import AVFoundation
 
 struct SettingsView: View {
+    @ObservedObject var chatViewModel: ChatViewModel
     @AppStorage("appSettingsData") private var appSettingsData: Data?
     @State private var appSettings = AppSettings()
     @Environment(\.dismiss) var dismiss
     @State private var systemVoices: [AVSpeechSynthesisVoice] = []
     @State private var showClearHistoryAlert = false
+    
+    @State private var shareSheetItems: [Any] = []
+    @State private var isShowingShareSheet = false
 
     // Closure provided by the parent view to actually clear the messages
     var clearMessages: (() -> Void)? = nil
@@ -34,37 +38,62 @@ struct SettingsView: View {
             voiceSection
             appearanceSection
             aboutSection
+            
 
+            // MARK: - Export Discussion Section
             Section {
-                Button(role: .destructive) {
-                    showClearHistoryAlert = true
-                } label: {
-                    Text("Clear Conversation History")
-                        .foregroundColor(.red)
-                }
-                .alert("Clear Conversation History?", isPresented: $showClearHistoryAlert) {
-                    Button("Delete", role: .destructive) {
-                        // Call the provided closure from parent to actually clear messages
-                        clearMessages?()
+                Button("Export Discussion to JSON") {
+                    // Attempt to create a temporary .json file of the conversation
+                    if let fileURL = chatViewModel.exportConversationAsJSONFile() {
+                        shareSheetItems = [fileURL]
+                        isShowingShareSheet = true
+                    } else {
+                        print("Failed to export conversation as JSON.")
+                        // Optionally, show an alert or user-facing error message here.
                     }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This action will permanently delete all saved chat messages.")
                 }
+            } header: {
+                Text("Export")
+                    .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
             } footer: {
-                Text("Deleting the conversation history is irreversible. Make sure you want to remove all past messages.")
+                Text("Export your chat history as a JSON file.")
                     .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
             }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Settings")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    saveSettings()
-                    dismiss()
-                }
-            }
+            // MARK: - Clear Conversation History
+            Section {
+               Button(role: .destructive) {
+                   showClearHistoryAlert = true
+               } label: {
+                   Text("Clear Conversation History")
+                       .foregroundColor(.red)
+               }
+               .alert("Clear Conversation History?", isPresented: $showClearHistoryAlert) {
+                   Button("Delete", role: .destructive) {
+                       // Call the provided closure from parent to actually clear messages
+                       clearMessages?()
+                   }
+                   Button("Cancel", role: .cancel) {}
+               } message: {
+                   Text("This action will permanently delete all saved chat messages.")
+               }
+           } footer: {
+               Text("Deleting the conversation history is irreversible. Make sure you want to remove all past messages.")
+                   .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+           }
+
+       }
+       .formStyle(.grouped)
+       .navigationTitle("Settings")
+       .toolbar {
+           ToolbarItem(placement: .confirmationAction) {
+               Button("Done") {
+                   saveSettings()
+                   dismiss()
+               }
+           }
+       }
+        .sheet(isPresented: $isShowingShareSheet) {
+           ActivityViewControllerWrapper(activityItems: shareSheetItems, applicationActivities: nil)
         }
         .background(
             Color.Theme.primaryGradient(isDarkMode: appSettings.isDarkMode)
@@ -262,5 +291,22 @@ struct SettingsView: View {
         if let encoded = try? JSONEncoder().encode(appSettings) {
             appSettingsData = encoded
         }
+    }
+}
+
+// MARK: - Share Sheet Wrapper
+struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let applicationActivities: [UIActivity]?
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: applicationActivities
+        )
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // No updates necessary
     }
 }

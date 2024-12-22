@@ -467,6 +467,32 @@ class ChatViewModel: ObservableObject {
             objectWillChange.send()
         }
     }
+    
+    func exportConversationAsJSONFile() -> URL? {
+            // Map the in-memory messages to MessageDTO
+            let messageDTOs = messages.map { MessageDTO(from: $0) }
+            
+            // Encode to JSON
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys] // optional: for readability
+                let jsonData = try encoder.encode(messageDTOs)
+                
+                // Write the JSON to a temporary file
+                let tempDir = FileManager.default.temporaryDirectory
+                let filename = "conversation-\(UUID().uuidString).json"
+                let fileURL = tempDir.appendingPathComponent(filename)
+                
+                try jsonData.write(to: fileURL, options: .atomic)
+                print("[ChatViewModel] Exported conversation to file: \(fileURL)")
+                
+                // Return the URL so we can share it
+                return fileURL
+            } catch {
+                print("[ChatViewModel] Export error: \(error)")
+                return nil
+            }
+        }
 
     deinit {
         //subscriptions.forEach { $0.cancel() }
