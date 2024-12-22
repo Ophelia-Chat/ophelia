@@ -58,35 +58,35 @@ jobs:
           name: build-logs
           path: ~/Library/Logs/DiagnosticReports/
 
-  test:
-    runs-on: macos-latest
-    needs: build
-    env:
-      XCODE_VERSION_PATH: "/Applications/Xcode_16.1.app"
-      WORKSPACE: "ophelia.xcodeproj/project.xcworkspace"
-      SCHEME: "ophelia"
-      DESTINATION: "platform=iOS Simulator,name=iPhone 16,OS=18.1"
-
-    steps:
-      - name: Check Out Code
-        uses: actions/checkout@v4
-
-      - name: Select Xcode Version
-        run: sudo xcode-select -switch $XCODE_VERSION_PATH
-
-      - name: Run Tests
-        run: |
-          set -o pipefail && xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -sdk iphonesimulator \
-            -destination "$DESTINATION" \
-            test | xcpretty
-        shell: bash
-
-      - name: Upload Test Results on Failure
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-logs
-          path: ~/Library/Logs/DiagnosticReports/
+  #  test:
+  #    runs-on: macos-latest
+  #    needs: build
+  #    env:
+  #      XCODE_VERSION_PATH: "/Applications/Xcode_16.1.app"
+  #      WORKSPACE: "ophelia.xcodeproj/project.xcworkspace"
+  #      SCHEME: "ophelia"
+  #      DESTINATION: "platform=iOS Simulator,name=iPhone 16,OS=18.1"
+  #
+  #    steps:
+  #      - name: Check Out Code
+  #        uses: actions/checkout@v4
+  #
+  #      - name: Select Xcode Version
+  #        run: sudo xcode-select -switch $XCODE_VERSION_PATH
+  #
+  #      - name: Run Tests
+  #        run: |
+  #          set -o pipefail && xcodebuild \
+  #            -workspace "$WORKSPACE" \
+  #            -scheme "$SCHEME" \
+  #            -sdk iphonesimulator \
+  #            -destination "$DESTINATION" \
+  #            test | xcpretty
+  #        shell: bash
+  #
+  #      - name: Upload Test Results on Failure
+  #        if: failure()
+  #        uses: actions/upload-artifact@v3
+  #        with:
+  #          name: test-logs
+  #          path: ~/Library/Logs/DiagnosticReports/

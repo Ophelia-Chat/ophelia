@@ -28,10 +28,9 @@ struct ChatMainView: View {
                     isLoading: viewModel.isLoading,
                     appSettings: viewModel.appSettings
                 )
-                // OPTIONAL: If you want a tap outside the text field to dismiss the keyboard
-                // .onTapGesture {
-                //     dismissKeyboard()
-                // }
+                .onTapGesture {
+                    dismissKeyboard()
+                }
 
                 // 3) The input bar
                 ChatInputContainer(

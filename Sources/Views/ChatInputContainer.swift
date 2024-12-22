@@ -42,8 +42,7 @@ struct ChatInputContainer: View {
 
                 // The Send button
                 Button {
-                    onSend()                           // Send the message
-                    // NOTE: We don’t hide the keyboard here
+                    onSend()
                 } label: {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 20))
@@ -62,9 +61,8 @@ struct ChatInputContainer: View {
             .background(.ultraThinMaterial)
             .background(Color.white.opacity(0.5))
         }
-        // OPTIONAL: If you always want focus when the view appears, do:
-        // .onAppear {
-        //     textFieldIsFocused = true
-        // }
+         .onAppear {
+             textFieldIsFocused = true
+        }
     }
 }
