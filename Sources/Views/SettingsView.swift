@@ -87,7 +87,10 @@ struct SettingsView: View {
        .toolbar {
            ToolbarItem(placement: .confirmationAction) {
                Button("Done") {
+                   // 1) Save locally so the user defaults are updated
                    saveSettings()
+                   // 2) Then explicitly tell the ChatViewModel to re-load or apply them
+                   chatViewModel.updateAppSettings(appSettings)
                    dismiss()
                }
            }

@@ -447,17 +447,19 @@ class ChatViewModel: ObservableObject {
         speechTask?.cancel()
         speechTask = Task {
             do {
-                try await voiceService?.speak(text)
-                print("[ChatViewModel] Speech completed successfully.")
+              try await voiceService?.speak(text)
+              print("[ChatViewModel] Speech completed successfully.")
             } catch {
-                print("[ChatViewModel] Speech error: \(error)")
-                if voiceService is OpenAITTSService {
-                    print("[ChatViewModel] OpenAI TTS failed, falling back to system voice.")
-                    let fallbackService = SystemVoiceService(voiceIdentifier: VoiceHelper.getDefaultVoiceIdentifier())
-                    voiceService = fallbackService
-                    try? await fallbackService.speak(text)
-                }
-            }
+              print("[ChatViewModel] Speech error: \(error)")
+              // Remove or comment out these lines:
+              //
+              // if voiceService is OpenAITTSService {
+              //   print("[ChatViewModel] OpenAI TTS failed, falling back to system voice.")
+              //   let fallbackService = SystemVoiceService(voiceIdentifier: VoiceHelper.getDefaultVoiceIdentifier())
+              //   voiceService = fallbackService
+              //   try? await fallbackService.speak(text)
+              // }
+            }   
         }
     }
 
