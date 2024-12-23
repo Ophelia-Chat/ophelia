@@ -4,6 +4,7 @@
 //
 //  Created by rob on 2024-11-27.
 //  Updated to include efficient token streaming with batching and optional throttling.
+//  *** Modified to truncate older messages in `prepareMessagesPayload()`. ***
 //
 
 import SwiftUI
@@ -56,16 +57,21 @@ class ChatViewModel: ObservableObject {
     private let encoder: JSONEncoder
 
     // MARK: - Token Batching Configuration
-    // Adjust these values to tune performance and responsiveness.
-    // tokenBatchSize: Number of tokens to accumulate before applying them at once.
-    // tokenFlushInterval: Maximum delay before flushing tokens if batch size is not reached.
     private let tokenBatchSize = 5
     private let tokenFlushInterval: TimeInterval = 0.2
 
-    // A buffer for newly arrived tokens before they are appended to the last AI message.
     private var tokenBuffer: String = ""
     private var lastFlushDate = Date()
     private var flushTask: Task<Void, Never>? = nil
+
+    // MARK: - Example Truncation Configuration
+    // We'll keep up to 10 recent messages, plus the current user message.
+    // If your entire conversation is short, no messages are truncated at all.
+    private let maxHistoryCount = 10
+
+    // Optional: use a short summary for older messages if you like
+    private let truncatedSummaryText =
+        "Previous context has been summarized to keep message size manageable."
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -288,6 +294,7 @@ class ChatViewModel: ObservableObject {
                 throw ChatServiceError.invalidAPIKey
             }
 
+            // Collect messages & possibly truncate older ones
             var payload = prepareMessagesPayload()
 
             // Insert the system message if the provider is OpenAI **or** GitHub
@@ -310,12 +317,10 @@ class ChatViewModel: ObservableObject {
                 system: systemMessage
             )
 
-            // Efficiently handle streaming tokens
             let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
             print("[ChatViewModel] Received response: \(completeResponse)")
 
             if completeResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // If no response text, remove the empty assistant message
                 if let last = messages.last, !last.isUser {
                     messages.removeLast()
                 }
@@ -332,9 +337,37 @@ class ChatViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Truncate or Summarize older messages here.
     private func prepareMessagesPayload() -> [[String: String]] {
+        // We want to form a payload that excludes older messages beyond our maxHistoryCount.
+
+        // messages.dropLast() excludes the *currently typed* message from user (which we handle separately),
+        // but we also appended the AI message to messages, so let's consider all but the last AI message too.
+        // If you prefer a different approach, adjust as needed.
+        var truncatedMessages = Array(messages.dropLast())
+
+        // If we've accumulated a lot of messages, let's cut the older ones.
+        if truncatedMessages.count > maxHistoryCount {
+            // Option A: Just remove them outright
+            let olderCount = truncatedMessages.count - maxHistoryCount
+            truncatedMessages.removeFirst(olderCount)
+
+            // Optionally, we could insert a short "summary" system message if you want to preserve context:
+            // (In practice, you'd have an actual summarization step. For now, just a placeholder.)
+            let summaryMessage = [
+                "role": "assistant",
+                "content": truncatedSummaryText
+            ]
+            // Insert at the front if you want it to appear before the truncated set
+            truncatedMessages.insert(.init(
+                id: UUID(),
+                text: truncatedSummaryText,
+                isUser: false
+            ), at: 0)
+        }
+
         var messagesPayload: [[String: String]] = []
-        for message in messages.dropLast() {
+        for message in truncatedMessages {
             let cleanedText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !cleanedText.isEmpty {
                 messagesPayload.append([
@@ -353,12 +386,11 @@ class ChatViewModel: ObservableObject {
         var completeResponse = ""
         var tokenCount = 0
 
-        let feedbackGenerator = UIImpactFeedbackGenerator(style: .light) // Light feedback
-        let finalFeedbackGenerator = UINotificationFeedbackGenerator()   // Final haptic burst
+        let feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
+        let finalFeedbackGenerator = UINotificationFeedbackGenerator()
         feedbackGenerator.prepare()
         finalFeedbackGenerator.prepare()
 
-        // Reset token buffering state each time a new stream starts
         tokenBuffer = ""
         lastFlushDate = Date()
         flushTask?.cancel()
@@ -367,32 +399,26 @@ class ChatViewModel: ObservableObject {
         for try await content in stream {
             if Task.isCancelled { break }
 
-            // Accumulate tokens in buffer
             tokenBuffer.append(content)
             completeResponse.append(content)
             tokenCount += 1
 
-            // If we've accumulated enough tokens, flush now
             if tokenCount % tokenBatchSize == 0 {
                 await flushTokens(aiMessage: aiMessage)
             } else {
-                // Otherwise, schedule a flush if not already scheduled
                 scheduleFlush(aiMessage: aiMessage)
             }
 
-            // Haptic feedback every few tokens
             if tokenCount % 5 == 0 {
                 feedbackGenerator.impactOccurred()
             }
         }
 
-        // End of stream, flush any remaining tokens
         await flushTokens(aiMessage: aiMessage, force: true)
         finalFeedbackGenerator.notificationOccurred(.success)
         return completeResponse
     }
 
-    /// Schedules a flush after tokenFlushInterval if no flush occurs sooner.
     private func scheduleFlush(aiMessage: MutableMessage) {
         flushTask?.cancel()
         flushTask = Task { [weak self] in
@@ -402,7 +428,6 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Applies buffered tokens to the aiMessage text and clears the buffer.
     private func flushTokens(aiMessage: MutableMessage, force: Bool = false) async {
         guard force || !tokenBuffer.isEmpty else { return }
 
@@ -447,19 +472,17 @@ class ChatViewModel: ObservableObject {
         speechTask?.cancel()
         speechTask = Task {
             do {
-              try await voiceService?.speak(text)
-              print("[ChatViewModel] Speech completed successfully.")
+                try await voiceService?.speak(text)
+                print("[ChatViewModel] Speech completed successfully.")
             } catch {
-              print("[ChatViewModel] Speech error: \(error)")
-              // Remove or comment out these lines:
-              //
-              // if voiceService is OpenAITTSService {
-              //   print("[ChatViewModel] OpenAI TTS failed, falling back to system voice.")
-              //   let fallbackService = SystemVoiceService(voiceIdentifier: VoiceHelper.getDefaultVoiceIdentifier())
-              //   voiceService = fallbackService
-              //   try? await fallbackService.speak(text)
-              // }
-            }   
+                print("[ChatViewModel] Speech error: \(error)")
+                // Remove or comment out the fallback code if you don’t want to revert to system voice:
+                // if voiceService is OpenAITTSService {
+                //    let fallbackService = SystemVoiceService(voiceIdentifier: VoiceHelper.getDefaultVoiceIdentifier())
+                //    voiceService = fallbackService
+                //    try? await fallbackService.speak(text)
+                // }
+            }
         }
     }
 
@@ -469,36 +492,26 @@ class ChatViewModel: ObservableObject {
             objectWillChange.send()
         }
     }
-    
+
     func exportConversationAsJSONFile() -> URL? {
-            // Map the in-memory messages to MessageDTO
-            let messageDTOs = messages.map { MessageDTO(from: $0) }
-            
-            // Encode to JSON
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys] // optional: for readability
-                let jsonData = try encoder.encode(messageDTOs)
-                
-                // Write the JSON to a temporary file
-                let tempDir = FileManager.default.temporaryDirectory
-                let filename = "conversation-\(UUID().uuidString).json"
-                let fileURL = tempDir.appendingPathComponent(filename)
-                
-                try jsonData.write(to: fileURL, options: .atomic)
-                print("[ChatViewModel] Exported conversation to file: \(fileURL)")
-                
-                // Return the URL so we can share it
-                return fileURL
-            } catch {
-                print("[ChatViewModel] Export error: \(error)")
-                return nil
-            }
+        let messageDTOs = messages.map { MessageDTO(from: $0) }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let jsonData = try encoder.encode(messageDTOs)
+            let tempDir = FileManager.default.temporaryDirectory
+            let filename = "conversation-\(UUID().uuidString).json"
+            let fileURL = tempDir.appendingPathComponent(filename)
+            try jsonData.write(to: fileURL, options: .atomic)
+            print("[ChatViewModel] Exported conversation to file: \(fileURL)")
+            return fileURL
+        } catch {
+            print("[ChatViewModel] Export error: \(error)")
+            return nil
         }
+    }
 
     deinit {
-        //subscriptions.forEach { $0.cancel() }
-        //subscriptions.removeAll()
         print("[ChatViewModel] Deinitialized.")
     }
 }
