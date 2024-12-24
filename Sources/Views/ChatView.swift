@@ -14,6 +14,9 @@ struct ChatView: View {
 
     // Shows Settings sheet
     @State private var showingSettings = false
+    
+    // Shows Memories sheet
+    @State private var showingMemories = false
 
     // Watches app’s lifecycle states (active/inactive)
     @Environment(\.scenePhase) private var scenePhase
@@ -36,14 +39,12 @@ struct ChatView: View {
                 )
             }
             .preferredColorScheme(isDarkMode ? .dark : .light)
-
             // Runs final setup each time the view appears
             .onAppear {
                 Task {
                     await viewModel.finalizeSetup()
                 }
             }
-
             // Presents Settings, re-initializes the chat once user closes it
             .sheet(isPresented: $showingSettings) {
                 ChatSettingsSheet(
@@ -55,11 +56,34 @@ struct ChatView: View {
                     }
                 )
             }
-
+            // Presents a sheet showing user memories
+            .sheet(isPresented: $showingMemories) {
+                NavigationStack {
+                    MemoriesView(memoryStore: viewModel.memoryStore)
+                        .navigationTitle("Your Memories")
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    showingMemories = false
+                                }
+                            }
+                        }
+                }
+            }
             // Basic nav bar
             .navigationTitle("Ophelia")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Left side: Memory icon
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showingMemories = true
+                    } label: {
+                        Image(systemName: "list.bullet.rectangle.portrait")
+                    }
+                }
+
+                // Right side: Settings (gear) icon
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingSettings = true
@@ -69,7 +93,6 @@ struct ChatView: View {
                 }
             }
             .tint(.blue)
-
             // If the app goes inactive, optionally do cleanup
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active {
