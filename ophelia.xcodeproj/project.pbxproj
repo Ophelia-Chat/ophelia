@@ -88,6 +88,9 @@
 		191B6BA02D1A49B2006AD239 /* MemoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B9F2D1A49AF006AD239 /* MemoriesView.swift */; };
 		191B6BA12D1A49B2006AD239 /* MemoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B9F2D1A49AF006AD239 /* MemoriesView.swift */; };
 		191B6BA22D1A49B2006AD239 /* MemoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6B9F2D1A49AF006AD239 /* MemoriesView.swift */; };
+		191B6BA42D1B7593006AD239 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6BA32D1B7590006AD239 /* EmbeddingService.swift */; };
+		191B6BA52D1B7593006AD239 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6BA32D1B7590006AD239 /* EmbeddingService.swift */; };
+		191B6BA62D1B7593006AD239 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6BA32D1B7590006AD239 /* EmbeddingService.swift */; };
 		19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 19517EB22D0D2752008F81B3 /* MarkdownUI */; };
 		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
@@ -145,6 +148,7 @@
 		191B6B972D1A483B006AD239 /* Memory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Memory.swift; sourceTree = "<group>"; };
 		191B6B9B2D1A48C8006AD239 /* MemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStore.swift; sourceTree = "<group>"; };
 		191B6B9F2D1A49AF006AD239 /* MemoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoriesView.swift; sourceTree = "<group>"; };
+		191B6BA32D1B7590006AD239 /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
 		1976BD3F2CF14D5F0066972B /* ophelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ophelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD512CF14D600066972B /* opheliaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD5B2CF14D600066972B /* opheliaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -197,6 +201,7 @@
 				1914CA382D16452900E275BF /* AnthropicService.swift */,
 				1914CA392D16452900E275BF /* ChatService.swift */,
 				1914CA3A2D16452900E275BF /* GitHubModelChatService.swift */,
+				191B6BA32D1B7590006AD239 /* EmbeddingService.swift */,
 				1914CA3B2D16452900E275BF /* OpenAIChatService.swift */,
 				1914CA3C2D16452900E275BF /* OpenAITTSService.swift */,
 				1914CA3D2D16452900E275BF /* OpenAIVoiceError.swift */,
@@ -421,6 +426,7 @@
 				1914CA5C2D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA5D2D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA5E2D16452900E275BF /* TypingIndicator.swift in Sources */,
+				191B6BA42D1B7593006AD239 /* EmbeddingService.swift in Sources */,
 				1914CA5F2D16452900E275BF /* OpenAIChatService.swift in Sources */,
 				1914CA602D16452900E275BF /* Message.swift in Sources */,
 				1914CA612D16452900E275BF /* ChatInputContainer.swift in Sources */,
@@ -457,6 +463,7 @@
 				1914CA8B2D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA8C2D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA8D2D16452900E275BF /* TypingIndicator.swift in Sources */,
+				191B6BA52D1B7593006AD239 /* EmbeddingService.swift in Sources */,
 				1914CA8E2D16452900E275BF /* OpenAIChatService.swift in Sources */,
 				1914CA8F2D16452900E275BF /* Message.swift in Sources */,
 				1914CA902D16452900E275BF /* ChatInputContainer.swift in Sources */,
@@ -493,6 +500,7 @@
 				1914CA742D16452900E275BF /* OpenAITTSService.swift in Sources */,
 				1914CA752D16452900E275BF /* AppSettings.swift in Sources */,
 				1914CA762D16452900E275BF /* TypingIndicator.swift in Sources */,
+				191B6BA62D1B7593006AD239 /* EmbeddingService.swift in Sources */,
 				1914CA772D16452900E275BF /* OpenAIChatService.swift in Sources */,
 				1914CA782D16452900E275BF /* Message.swift in Sources */,
 				1914CA792D16452900E275BF /* ChatInputContainer.swift in Sources */,
