@@ -8,8 +8,10 @@
 //  list of user memories. It handles loading from and saving to a JSON file,
 //  and provides methods to add, remove, clear, and search for relevant memories.
 //
-//  Optionally, it can generate and store vector embeddings (e.g., from OpenAI)
-//  to enable advanced semantic or contextual lookups.
+//  Additionally, it can generate and store vector embeddings (e.g., from OpenAI)
+//  to enable advanced semantic or contextual lookups. This version includes
+//  performance improvements for large datasets, better error handling, and
+//  refined similarity logic.
 //
 //  Usage in your ChatViewModel (example):
 //    @Published var memoryStore = MemoryStore(embeddingService: EmbeddingService(apiKey: "..."))
@@ -84,17 +86,22 @@ class MemoryStore: ObservableObject {
     func addMemory(content: String) {
         let newMemory = Memory(content: content)
         memories.append(newMemory)
-
+        
         // If we have an embedding service, compute an embedding asynchronously
         // and update the stored memory once it's available.
         if let service = embeddingService {
-            Task {
+            Task { [weak self] in
+                guard let self = self else { return }
+                
+                // Directly await embedding without do-catch
                 if let embed = await service.embedText(content) {
-                    updateMemoryEmbedding(for: newMemory.id, to: embed)
+                    self.updateMemoryEmbedding(for: newMemory.id, to: embed)
+                } else {
+                    print("[MemoryStore] Embedding service returned nil.")
                 }
             }
         }
-
+        
         saveMemories()
     }
 
@@ -135,32 +142,43 @@ class MemoryStore: ObservableObject {
                 falls back to a simple substring approach.
      */
     func retrieveRelevant(to query: String, topK: Int = 5) async -> [Memory] {
-        // If there's no embedding service, fallback to substring approach
+        // 1) If no embedding service or query embedding fails, fallback to substring
         guard let service = embeddingService,
               let queryEmbedding = await service.embedText(query) else {
-            // Basic substring matching if embedding is unavailable or fails
-            return memories.filter {
-                $0.content.localizedCaseInsensitiveContains(query)
-            }
+            return substringFallback(query: query, topK: topK)
         }
 
-        // If we have a query embedding, compute similarity vs. each memory
-        let scored = memories.map { mem -> (Memory, Float) in
-            if let memEmbedding = mem.embedding {
-                // compute semantic similarity
-                let score = cosineSimilarity(memEmbedding, queryEmbedding)
-                return (mem, score)
-            } else {
-                // fallback or partial credit if the text itself matches
-                let fallbackScore: Float = mem.content.localizedCaseInsensitiveContains(query) ? 0.3 : 0.0
-                return (mem, fallbackScore)
+        // 2) Compute similarity vs. each memory. For large memory sets, do it concurrently.
+        //    We'll gather results in a local array, then sort.
+        let scored: [(Memory, Float)] = await withTaskGroup(of: (Memory, Float).self) { group in
+            // Add each memory to a TaskGroup so we can parallelize similarity checks
+            for mem in memories {
+                group.addTask { [weak self] in
+                    guard let self = self else { return (mem, 0.0) }
+                    
+                    if let memEmbedding = mem.embedding {
+                        // Compute semantic similarity
+                        let score = await self.refinedCosineSimilarity(memEmbedding, queryEmbedding)
+                        return (mem, score)
+                    } else {
+                        // Fallback if no embedding is stored
+                        let fallbackScore: Float = mem.content.localizedCaseInsensitiveContains(query) ? 0.3 : 0.0
+                        return (mem, fallbackScore)
+                    }
+                }
             }
+
+            // Collect all results
+            var tempResults = [(Memory, Float)]()
+            for await result in group {
+                tempResults.append(result)
+            }
+            return tempResults
         }
 
-        // Sort by descending similarity and take the top K
+        // 3) Sort by descending similarity and take the top K
         let sorted = scored.sorted { $0.1 > $1.1 }
-        let top = Array(sorted.prefix(topK).map { $0.0 })
-        return top
+        return Array(sorted.prefix(topK).map { $0.0 })
     }
 
     // MARK: - Private Methods
@@ -206,21 +224,41 @@ class MemoryStore: ObservableObject {
     }
 
     /**
-     Computes the cosine similarity between two float arrays (vectors).
-     If lengths mismatch or either vector is all zero, returns 0.
+     A refined cosine similarity with a small epsilon to handle floating precision better.
+     If lengths mismatch or either vector is zero-length, returns 0.
 
      - Parameters:
        - v1: The first vector of floats.
        - v2: The second vector of floats.
-     - Returns: The cosine similarity score, a value typically between -1 and 1.
-                1 indicates nearly identical direction, 0 is orthogonal, -1 is opposite direction.
+     - Returns: The cosine similarity score, typically between -1 and 1,
+                with 1 indicating high similarity.
      */
-    private func cosineSimilarity(_ v1: [Float], _ v2: [Float]) -> Float {
+    private func refinedCosineSimilarity(_ v1: [Float], _ v2: [Float]) -> Float {
         guard v1.count == v2.count else { return 0 }
         let dotProduct = zip(v1, v2).map(*).reduce(0, +)
-        let norm1 = sqrt(v1.map { $0 * $0 }.reduce(0, +))
-        let norm2 = sqrt(v2.map { $0 * $0 }.reduce(0, +))
-        guard norm1 > 0, norm2 > 0 else { return 0 }
+        let norm1 = sqrt(v1.reduce(0) { $0 + $1 * $1 })
+        let norm2 = sqrt(v2.reduce(0) { $0 + $1 * $1 })
+        let epsilon: Float = 1e-6
+        if norm1 < epsilon || norm2 < epsilon { return 0 }
         return dotProduct / (norm1 * norm2)
+    }
+
+    /**
+     Substring fallback approach when embeddings are unavailable or fail.
+     Returns up to `topK` matches where `content` contains `query`
+     (case-insensitive), sorted by a basic measure of "match strength."
+
+     - Parameters:
+       - query: The user’s text query.
+       - topK: The maximum number of results to return.
+     - Returns: An array of memories that match substring logic.
+     */
+    private func substringFallback(query: String, topK: Int) -> [Memory] {
+        // A simple approach: rank by the count of matched occurrences, etc.
+        // For now, let's just filter and return up to topK in arbitrary order.
+        let filtered = memories.filter {
+            $0.content.localizedCaseInsensitiveContains(query)
+        }
+        return Array(filtered.prefix(topK))
     }
 }

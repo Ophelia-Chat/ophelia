@@ -25,7 +25,7 @@ struct opheliaApp: App {
                     // The main view of your app, now displayed after initialization is complete
                     ChatView()
                         .tint(.blue)
-                        //.preferredColorScheme(.light)
+                        // .preferredColorScheme(.light)
                 } else {
                     // A lightweight loading view shown until the app finishes background setup
                     ProgressView("Loading...")
@@ -54,7 +54,7 @@ final class AppInitializer: ObservableObject {
         await Task(priority: .background) {
             // Simulate a small delay to represent fetching/initializing resources
             try? await Task.sleep(nanoseconds: 300_000_000)
-            
+
             // Here you might load AppSettings from disk or initialize services.
             // For example:
             // await ServiceManager.shared.initialize()
@@ -81,40 +81,50 @@ private extension opheliaApp {
     }
 
     func setupAppearance() {
-        // Navigation bar appearance
+        // MARK: Navigation Bar Appearance
         let navigationBarAppearance = UINavigationBarAppearance()
-        navigationBarAppearance.configureWithDefaultBackground()
-        navigationBarAppearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterial)
+        navigationBarAppearance.configureWithOpaqueBackground()
+        navigationBarAppearance.backgroundColor = UIColor.systemGroupedBackground
+        navigationBarAppearance.backgroundEffect = nil   // remove any blur
+        navigationBarAppearance.shadowColor = .clear     // removes bottom hairline
 
+        // Customize button text color if desired
         let buttonAppearance = UIBarButtonItemAppearance(style: .plain)
         buttonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.systemBlue]
         navigationBarAppearance.buttonAppearance = buttonAppearance
 
+        // Also use the same for scroll edge (large titles) and compact appearances
         UINavigationBar.appearance().standardAppearance = navigationBarAppearance
         UINavigationBar.appearance().compactAppearance = navigationBarAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navigationBarAppearance
+        UINavigationBar.appearance().compactScrollEdgeAppearance = navigationBarAppearance
 
-        // Toolbar appearance
+        // MARK: Toolbar Appearance
         let toolbarAppearance = UIToolbarAppearance()
-        toolbarAppearance.configureWithDefaultBackground()
-        toolbarAppearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterial)
+        toolbarAppearance.configureWithOpaqueBackground()
+        toolbarAppearance.backgroundColor = UIColor.systemGroupedBackground
+        toolbarAppearance.backgroundEffect = nil  // remove any blur
+        toolbarAppearance.shadowColor = .clear    // removes bottom hairline
 
         UIToolbar.appearance().standardAppearance = toolbarAppearance
         UIToolbar.appearance().compactAppearance = toolbarAppearance
         UIToolbar.appearance().scrollEdgeAppearance = toolbarAppearance
 
-        // General UI appearance
+        // MARK: General UI Appearance
         UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = .systemBlue
-
-        // Keyboard appearance
         UITextField.appearance().tintColor = .systemBlue
 
+        // MARK: Tab Bar Appearance (iOS 15+)
         #if !targetEnvironment(macCatalyst)
         if #available(iOS 15.0, *) {
             let tabBarAppearance = UITabBarAppearance()
-            tabBarAppearance.configureWithDefaultBackground()
-            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+            tabBarAppearance.configureWithOpaqueBackground()
+            tabBarAppearance.backgroundColor = UIColor.systemGroupedBackground
+            tabBarAppearance.backgroundEffect = nil
+            tabBarAppearance.shadowColor = .clear
+
             UITabBar.appearance().standardAppearance = tabBarAppearance
+            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
         }
         #endif
     }
