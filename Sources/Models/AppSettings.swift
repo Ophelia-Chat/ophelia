@@ -7,18 +7,23 @@
 
 import Foundation
 import AVFoundation
+import SwiftUI
 
-/// Represents a chat model from a given provider.
-struct ChatModel: Identifiable, Hashable, Codable {
-    let id: String
-    let name: String
-    let provider: ChatProvider
+/// Represents the user's preference for the app's appearance.
+///
+/// - system: Follows the device's Light/Dark setting
+/// - light:  Forces Light Mode
+/// - dark:   Forces Dark Mode
+enum ThemeMode: String, Codable, CaseIterable {
+    case system
+    case light
+    case dark
 }
 
-/// Indicates which AI provider to use: OpenAI or Anthropic.
+/// A simple struct indicating which AI provider we’re using.
 enum ChatProvider: String, Codable, CaseIterable, Identifiable {
-    case openAI = "OpenAI"
-    case anthropic = "Anthropic"
+    case openAI      = "OpenAI"
+    case anthropic   = "Anthropic"
     case githubModel = "GitHub Model"
 
     var id: String { rawValue }
@@ -27,51 +32,52 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .openAI:
             return [
-                ChatModel(id: "gpt-4o-mini", name: "GPT-4o Mini", provider: self),
-                ChatModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", provider: self)
+                ChatModel(id: "gpt-4o-mini",    name: "GPT-4o Mini",     provider: self),
+                ChatModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo",  provider: self)
             ]
         case .anthropic:
             return [
-                ChatModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: self),
+                ChatModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku",  provider: self),
                 ChatModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", provider: self),
-                ChatModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", provider: self)
+                ChatModel(id: "claude-3-opus-20240229",     name: "Claude 3 Opus",     provider: self)
             ]
         case .githubModel:
             return [
-                ChatModel(id: "AI21-Jamba-1.5-Large", name: "AI21 Jamba 1.5 Large", provider: self),
-                ChatModel(id: "AI21-Jamba-1.5-Mini", name: "AI21 Jamba 1.5 Mini", provider: self),
-                ChatModel(id: "Cohere-command-r", name: "Cohere Command R", provider: self),
-                ChatModel(id: "Cohere-command-r-08-2024", name: "Cohere Command R 08-2024", provider: self),
-                ChatModel(id: "Cohere-command-r-plus", name: "Cohere Command R+", provider: self),
-                ChatModel(id: "Cohere-command-r-plus-08-2024", name: "Cohere Command R+ 08-2024", provider: self),
-                ChatModel(id: "jais-30b-chat", name: "JAIS 30b Chat", provider: self),
-                ChatModel(id: "Llama-3.2-11B-Vision-Instruct", name: "Llama-3.2-11B-Vision-Instruct", provider: self),
-                ChatModel(id: "Llama-3.2-90B-Vision-Instruct", name: "Llama-3.2-90B-Vision-Instruct", provider: self),
-                ChatModel(id: "Llama-3.3-70B-Instruct", name: "Llama-3.3-70B-Instruct", provider: self),
-                ChatModel(id: "Meta-Llama-3-70B-Instruct", name: "Meta-Llama-3-70B-Instruct", provider: self),
-                ChatModel(id: "Meta-Llama-3-8B-Instruct", name: "Meta-Llama-3-8B-Instruct", provider: self),
+                // All your listed GitHub-based models here...
+                ChatModel(id: "AI21-Jamba-1.5-Large",         name: "AI21 Jamba 1.5 Large",      provider: self),
+                ChatModel(id: "AI21-Jamba-1.5-Mini",          name: "AI21 Jamba 1.5 Mini",       provider: self),
+                ChatModel(id: "Cohere-command-r",             name: "Cohere Command R",          provider: self),
+                ChatModel(id: "Cohere-command-r-08-2024",     name: "Cohere Command R 08-2024",  provider: self),
+                ChatModel(id: "Cohere-command-r-plus",        name: "Cohere Command R+",         provider: self),
+                ChatModel(id: "Cohere-command-r-plus-08-2024",name: "Cohere Command R+ 08-2024", provider: self),
+                ChatModel(id: "jais-30b-chat",                name: "JAIS 30b Chat",             provider: self),
+                ChatModel(id: "Llama-3.2-11B-Vision-Instruct",name: "Llama-3.2-11B-Vision-Instruct", provider: self),
+                ChatModel(id: "Llama-3.2-90B-Vision-Instruct",name: "Llama-3.2-90B-Vision-Instruct", provider: self),
+                ChatModel(id: "Llama-3.3-70B-Instruct",       name: "Llama-3.3-70B-Instruct",    provider: self),
+                ChatModel(id: "Meta-Llama-3-70B-Instruct",    name: "Meta-Llama-3-70B-Instruct", provider: self),
+                ChatModel(id: "Meta-Llama-3-8B-Instruct",     name: "Meta-Llama-3-8B-Instruct",  provider: self),
                 ChatModel(id: "Meta-Llama-3.1-405B-Instruct", name: "Meta-Llama-3.1-405B-Instruct", provider: self),
-                ChatModel(id: "Meta-Llama-3.1-70B-Instruct", name: "Meta-Llama-3.1-70B-Instruct", provider: self),
-                ChatModel(id: "Meta-Llama-3.1-8B-Instruct", name: "Meta-Llama-3.1-8B-Instruct", provider: self),
-                ChatModel(id: "Ministral-3B", name: "Ministral 3B", provider: self),
-                ChatModel(id: "Mistral-large", name: "Mistral Large", provider: self),
-                ChatModel(id: "Mistral-large-2407", name: "Mistral Large (2407)", provider: self),
-                ChatModel(id: "Mistral-Large-2411", name: "Mistral Large 24.11", provider: self),
-                ChatModel(id: "Mistral-Nemo", name: "Mistral Nemo", provider: self),
-                ChatModel(id: "Mistral-small", name: "Mistral Small", provider: self),
-                ChatModel(id: "gpt-4o", name: "OpenAI GPT-4o", provider: self),
-                ChatModel(id: "gpt-4o-mini", name: "OpenAI GPT-4o mini", provider: self),
-                ChatModel(id: "o1-mini", name: "OpenAI o1-mini", provider: self),
-                ChatModel(id: "o1-preview", name: "OpenAI o1-preview", provider: self),
-                ChatModel(id: "Phi-3-medium-128k-instruct", name: "Phi-3-medium instruct (128k)", provider: self),
-                ChatModel(id: "Phi-3-medium-4k-instruct", name: "Phi-3-medium instruct (4k)", provider: self),
-                ChatModel(id: "Phi-3-mini-128k-instruct", name: "Phi-3-mini instruct (128k)", provider: self),
-                ChatModel(id: "Phi-3-mini-4k-instruct", name: "Phi-3-mini instruct (4k)", provider: self),
-                ChatModel(id: "Phi-3-small-128k-instruct", name: "Phi-3-small instruct (128k)", provider: self),
-                ChatModel(id: "Phi-3-small-8k-instruct", name: "Phi-3-small instruct (8k)", provider: self),
-                ChatModel(id: "Phi-3.5-mini-instruct", name: "Phi-3.5-mini instruct (128k)", provider: self),
-                ChatModel(id: "Phi-3.5-MoE-instruct", name: "Phi-3.5-MoE instruct (128k)", provider: self),
-                ChatModel(id: "Phi-3.5-vision-instruct", name: "Phi-3.5-vision instruct (128k)", provider: self)
+                ChatModel(id: "Meta-Llama-3.1-70B-Instruct",  name: "Meta-Llama-3.1-70B-Instruct", provider: self),
+                ChatModel(id: "Meta-Llama-3.1-8B-Instruct",   name: "Meta-Llama-3.1-8B-Instruct",  provider: self),
+                ChatModel(id: "Ministral-3B",                 name: "Ministral 3B",              provider: self),
+                ChatModel(id: "Mistral-large",                name: "Mistral Large",             provider: self),
+                ChatModel(id: "Mistral-large-2407",           name: "Mistral Large (2407)",       provider: self),
+                ChatModel(id: "Mistral-Large-2411",           name: "Mistral Large 24.11",        provider: self),
+                ChatModel(id: "Mistral-Nemo",                 name: "Mistral Nemo",              provider: self),
+                ChatModel(id: "Mistral-small",                name: "Mistral Small",             provider: self),
+                ChatModel(id: "gpt-4o",                       name: "OpenAI GPT-4o",             provider: self),
+                ChatModel(id: "gpt-4o-mini",                  name: "OpenAI GPT-4o mini",        provider: self),
+                ChatModel(id: "o1-mini",                      name: "OpenAI o1-mini",            provider: self),
+                ChatModel(id: "o1-preview",                   name: "OpenAI o1-preview",         provider: self),
+                ChatModel(id: "Phi-3-medium-128k-instruct",   name: "Phi-3-medium instruct (128k)", provider: self),
+                ChatModel(id: "Phi-3-medium-4k-instruct",     name: "Phi-3-medium instruct (4k)",   provider: self),
+                ChatModel(id: "Phi-3-mini-128k-instruct",     name: "Phi-3-mini instruct (128k)",   provider: self),
+                ChatModel(id: "Phi-3-mini-4k-instruct",       name: "Phi-3-mini instruct (4k)",    provider: self),
+                ChatModel(id: "Phi-3-small-128k-instruct",    name: "Phi-3-small instruct (128k)", provider: self),
+                ChatModel(id: "Phi-3-small-8k-instruct",      name: "Phi-3-small instruct (8k)",   provider: self),
+                ChatModel(id: "Phi-3.5-mini-instruct",        name: "Phi-3.5-mini instruct (128k)", provider: self),
+                ChatModel(id: "Phi-3.5-MoE-instruct",         name: "Phi-3.5-MoE instruct (128k)",  provider: self),
+                ChatModel(id: "Phi-3.5-vision-instruct",      name: "Phi-3.5-vision instruct (128k)", provider: self)
             ]
         }
     }
@@ -81,22 +87,37 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Holds user-configurable settings for the application, including API keys, models, and voice settings.
-struct AppSettings: Codable, Equatable {
-    var openAIKey: String = ""
-    var anthropicKey: String = ""
-    var githubToken: String = ""
+/// A simple model used by ChatProvider for listing available chat models.
+struct ChatModel: Identifiable, Hashable, Codable {
+    let id: String
+    let name: String
+    let provider: ChatProvider
+}
 
-    var selectedProvider: ChatProvider = .openAI
-    var selectedModelId: String
-    var systemMessage: String = ""
+/// The main app settings class, storing user-configurable properties.
+final class AppSettings: ObservableObject, Codable, Equatable {
 
-    var selectedVoiceProvider: VoiceProvider = .system
-    var selectedSystemVoiceId: String
-    var selectedOpenAIVoice: String = "alloy"
-    var autoplayVoice: Bool = false
-    var isDarkMode: Bool = false
+    // MARK: - Published Properties
 
+    @Published var openAIKey: String = ""
+    @Published var anthropicKey: String = ""
+    @Published var githubToken: String = ""
+
+    @Published var selectedProvider: ChatProvider = .openAI
+    @Published var selectedModelId: String
+    @Published var systemMessage: String = ""
+
+    @Published var selectedVoiceProvider: VoiceProvider = .system
+    @Published var selectedSystemVoiceId: String
+    @Published var selectedOpenAIVoice: String = "alloy"
+    @Published var autoplayVoice: Bool = false
+
+    /// The user's chosen theme mode—system, light, or dark.
+    @Published var themeMode: ThemeMode = .system
+
+    // MARK: - Computed Properties
+
+    /// Returns the appropriate API key based on the selected provider.
     var currentAPIKey: String {
         switch selectedProvider {
         case .openAI:
@@ -108,12 +129,96 @@ struct AppSettings: Codable, Equatable {
         }
     }
 
+    /// Returns the chosen model, or the default if `selectedModelId` isn't found.
     var selectedModel: ChatModel {
-        selectedProvider.availableModels.first { $0.id == selectedModelId } ?? selectedProvider.defaultModel
+        selectedProvider.availableModels.first { $0.id == selectedModelId }
+        ?? selectedProvider.defaultModel
     }
+
+    /// A helper for SwiftUI usage if you want .preferredColorScheme(...) somewhere
+    var colorScheme: ColorScheme? {
+        switch themeMode {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+
+    // MARK: - Initializer
 
     init() {
         self.selectedModelId = ChatProvider.openAI.defaultModel.id
         self.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case openAIKey
+        case anthropicKey
+        case githubToken
+        case selectedProvider
+        case selectedModelId
+        case systemMessage
+        case selectedVoiceProvider
+        case selectedSystemVoiceId
+        case selectedOpenAIVoice
+        case autoplayVoice
+        case themeMode
+    }
+
+    convenience init(from decoder: Decoder) throws {
+        self.init()
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        openAIKey    = try container.decode(String.self, forKey: .openAIKey)
+        anthropicKey = try container.decode(String.self, forKey: .anthropicKey)
+        githubToken  = try container.decode(String.self, forKey: .githubToken)
+
+        selectedProvider = try container.decode(ChatProvider.self, forKey: .selectedProvider)
+        selectedModelId  = try container.decode(String.self, forKey: .selectedModelId)
+        systemMessage    = try container.decode(String.self, forKey: .systemMessage)
+
+        selectedVoiceProvider = try container.decode(VoiceProvider.self, forKey: .selectedVoiceProvider)
+        selectedSystemVoiceId = try container.decode(String.self, forKey: .selectedSystemVoiceId)
+        selectedOpenAIVoice   = try container.decode(String.self, forKey: .selectedOpenAIVoice)
+        autoplayVoice         = try container.decode(Bool.self,  forKey: .autoplayVoice)
+
+        themeMode = (try? container.decode(ThemeMode.self, forKey: .themeMode)) ?? .system
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(openAIKey,    forKey: .openAIKey)
+        try container.encode(anthropicKey, forKey: .anthropicKey)
+        try container.encode(githubToken,  forKey: .githubToken)
+
+        try container.encode(selectedProvider, forKey: .selectedProvider)
+        try container.encode(selectedModelId,  forKey: .selectedModelId)
+        try container.encode(systemMessage,    forKey: .systemMessage)
+
+        try container.encode(selectedVoiceProvider, forKey: .selectedVoiceProvider)
+        try container.encode(selectedSystemVoiceId, forKey: .selectedSystemVoiceId)
+        try container.encode(selectedOpenAIVoice,   forKey: .selectedOpenAIVoice)
+        try container.encode(autoplayVoice,         forKey: .autoplayVoice)
+
+        try container.encode(themeMode, forKey: .themeMode)
+    }
+
+    // MARK: - Equatable
+
+    static func == (lhs: AppSettings, rhs: AppSettings) -> Bool {
+        lhs.openAIKey == rhs.openAIKey &&
+        lhs.anthropicKey == rhs.anthropicKey &&
+        lhs.githubToken == rhs.githubToken &&
+        lhs.selectedProvider == rhs.selectedProvider &&
+        lhs.selectedModelId == rhs.selectedModelId &&
+        lhs.systemMessage == rhs.systemMessage &&
+        lhs.selectedVoiceProvider == rhs.selectedVoiceProvider &&
+        lhs.selectedSystemVoiceId == rhs.selectedSystemVoiceId &&
+        lhs.selectedOpenAIVoice == rhs.selectedOpenAIVoice &&
+        lhs.autoplayVoice == rhs.autoplayVoice &&
+        lhs.themeMode == rhs.themeMode
     }
 }

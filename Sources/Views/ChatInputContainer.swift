@@ -33,7 +33,9 @@ struct ChatInputContainer: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     // Theming / styling
-                    .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
+                    .background(
+                        Color.Theme.bubbleBackground(isDarkMode: isDarkMode, isUser: false)
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
@@ -59,7 +61,6 @@ struct ChatInputContainer: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
-            .background(Color.white.opacity(0.5))
         }
          .onAppear {
              textFieldIsFocused = true

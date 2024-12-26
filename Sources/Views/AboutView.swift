@@ -8,7 +8,11 @@
 import SwiftUI
 
 struct AboutView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
+        let isDarkMode = (colorScheme == .dark)
+        
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 
@@ -19,7 +23,7 @@ struct AboutView: View {
                      and GitHub/Azure-based models—and offers features such as speech synthesis and \
                      a customizable system message. Stay productive, creative, and connected with Ophelia!
                      """)
-                    .font(.body)
+                .font(.body)
                 
                 // Key Features
                 Text("Key Features")
@@ -31,20 +35,21 @@ struct AboutView: View {
                      • **Customizable System Message**: Personalize the AI’s behavior and style.
                      • **Active Development**: Experience early features via the TestFlight beta, helping refine Ophelia.
                      """)
-                    .font(.subheadline)
-                    .padding(.bottom)
+                .font(.subheadline)
+                .padding(.bottom)
                 
                 // Link to Source Code
                 Text("Source Code")
                     .font(.headline)
+                
                 Text("""
                      Ophelia is fully open source. You can view and contribute to the project on GitHub:
                      """)
-                    .font(.body)
+                .font(.body)
                 
                 Link("View on GitHub",
                      destination: URL(string: "https://github.com/kroonen/ophelia")!)
-                    .foregroundColor(.blue)
+                .foregroundColor(.blue)
                 
                 // License Information
                 Text("License")
@@ -55,13 +60,13 @@ struct AboutView: View {
                      Any use of this software over a network must provide access to its source code. \
                      For more information, please visit the AGPL v3.0 website:
                      """)
-                    .font(.body)
+                .font(.body)
                 
                 Link("AGPL v3.0 License",
                      destination: URL(string: "https://www.gnu.org/licenses/agpl-3.0.html")!)
-                    .foregroundColor(.blue)
+                .foregroundColor(.blue)
                 
-                // Spacer
+                // Divider
                 Divider()
                 
                 // Additional Info (Version & Developer)
@@ -81,8 +86,9 @@ struct AboutView: View {
             .padding()
         }
         .navigationTitle("About Ophelia")
+        // Apply your theme's gradient background, keyed off `isDarkMode`
         .background(
-            Color.Theme.primaryGradient(isDarkMode: false)
+            Color.Theme.primaryGradient(isDarkMode: isDarkMode)
         )
     }
 }

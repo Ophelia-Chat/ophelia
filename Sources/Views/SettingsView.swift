@@ -2,9 +2,7 @@
 //  SettingsView.swift
 //  ophelia
 //
-//  Originally created by rob on 2024-11-27.
-//  Updated to preserve selected model across provider changes and settings navigation,
-//  and to provide a link to view or manage user memories.
+//  Created by rob on 2024-11-27.
 //
 
 import SwiftUI
@@ -22,40 +20,43 @@ struct SettingsView: View {
     /// Persisted settings data; used to initialize and store `appSettings`.
     @AppStorage("appSettingsData") private var appSettingsData: Data?
 
-    /// A local copy of the app settings, which gets persisted and pushed back
-    /// into `chatViewModel` on changes.
+    /// A local copy of the app settings, which gets persisted and pushed
+    /// back into `chatViewModel` on changes.
     @State private var appSettings = AppSettings()
     
     /// For dismissing the settings view (if presented modally).
     @Environment(\.dismiss) var dismiss
-    
-    /// Cached list of system voices for TTS options.
-    @State private var systemVoices: [AVSpeechSynthesisVoice] = []
-    
-    /// Controls the alert confirming whether to clear the conversation.
-    @State private var showClearHistoryAlert = false
 
-    /// Holds items for the iOS share sheet (used when exporting chat history).
+    /// Capture the system's color scheme for `.system` logic
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Cached system voices, etc.
+    @State private var systemVoices: [AVSpeechSynthesisVoice] = []
+    @State private var showClearHistoryAlert = false
     @State private var shareSheetItems: [Any] = []
     @State private var isShowingShareSheet = false
 
-    /// Closure provided by the parent view to actually clear the messages from memory.
     var clearMessages: (() -> Void)? = nil
 
-    // MARK: - Voice Provider Configuration
-
-    /// A list of potential OpenAI TTS voice identifiers, matched with user-friendly names.
     private let openAIVoices = [
-        ("alloy",   "Alloy"),
-        ("echo",    "Echo"),
-        ("fable",   "Fable"),
-        ("onyx",    "Onyx"),
-        ("nova",    "Nova"),
-        ("shimmer", "Shimmer")
+        ("alloy", "Alloy"), ("echo", "Echo"), ("fable", "Fable"),
+        ("onyx", "Onyx"),   ("nova", "Nova"), ("shimmer", "Shimmer")
     ]
 
-    // MARK: - Body
+    // MARK: - Computed: Determine “isDarkMode” from `themeMode` & system
+    private var isDarkMode: Bool {
+        switch appSettings.themeMode {
+        case .dark:
+            return true
+        case .light:
+            return false
+        case .system:
+            // Fallback on the device setting
+            return (colorScheme == .dark)
+        }
+    }
 
+    // MARK: - Body
     var body: some View {
         Form {
             providerSection
@@ -73,9 +74,9 @@ struct SettingsView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
-                    // 1) Save the local appSettings to UserDefaults
+                    // 1) Save local appSettings to UserDefaults
                     saveSettings()
-                    // 2) Update the actual ChatViewModel with the new settings
+                    // 2) Update the actual ChatViewModel with new settings
                     chatViewModel.updateAppSettings(appSettings)
                     dismiss()
                 }
@@ -84,28 +85,28 @@ struct SettingsView: View {
         .sheet(isPresented: $isShowingShareSheet) {
             ActivityViewControllerWrapper(activityItems: shareSheetItems, applicationActivities: nil)
         }
+        // Use a dynamic background that checks `isDarkMode`
         .background(
-            Color.Theme.primaryGradient(isDarkMode: appSettings.isDarkMode)
+            Color.Theme.primaryGradient(isDarkMode: isDarkMode)
+                .ignoresSafeArea()
         )
         .onAppear {
             loadSettings()
             systemVoices = VoiceHelper.getAvailableVoices()
 
             // Validate the currently selected system voice.
-            // If invalid, revert to a default voice.
             if !VoiceHelper.isValidVoiceIdentifier(appSettings.selectedSystemVoiceId) {
                 appSettings.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()
                 saveSettings()
             }
         }
-        .onChange(of: appSettings) { oldSettings, newSettings in
-            // Automatically persist changes whenever appSettings changes
+        .onChange(of: appSettings) { _, _ in
+            // Auto-persist changes whenever appSettings changes
             saveSettings()
         }
     }
 
     // MARK: - Section: Chat Provider
-
     private var providerSection: some View {
         Section {
             Picker("Provider", selection: $appSettings.selectedProvider) {
@@ -114,8 +115,7 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: appSettings.selectedProvider) { oldProvider, newProvider in
-                // If the current model is invalid for the new provider, revert to default
+            .onChange(of: appSettings.selectedProvider) { _, newProvider in
                 let availableModels = newProvider.availableModels
                 if !availableModels.contains(where: { $0.id == appSettings.selectedModelId }) {
                     appSettings.selectedModelId = newProvider.defaultModel.id
@@ -123,19 +123,18 @@ struct SettingsView: View {
             }
         } header: {
             Text("Chat Provider")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         } footer: {
             Text(appSettings.selectedProvider == .openAI
                  ? "Uses OpenAI's GPT models"
                  : appSettings.selectedProvider == .anthropic
                  ? "Uses Anthropic's Claude models"
                  : "Uses GitHub/Azure-based model endpoints.")
-            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Section: Model
-
     private var modelSection: some View {
         Section {
             NavigationLink {
@@ -153,12 +152,11 @@ struct SettingsView: View {
             }
         } header: {
             Text("Model")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Section: API Key
-
     private var apiKeySection: some View {
         Section {
             switch appSettings.selectedProvider {
@@ -192,7 +190,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Section: System Message
-
     private var systemMessageSection: some View {
         Section {
             TextEditor(text: $appSettings.systemMessage)
@@ -200,15 +197,14 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
         } header: {
             Text("System Message")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         } footer: {
             Text("Provide instructions that define how the AI assistant should behave.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Section: Voice Settings
-
     private var voiceSection: some View {
         Section {
             Picker("Voice Provider", selection: $appSettings.selectedVoiceProvider) {
@@ -236,33 +232,33 @@ struct SettingsView: View {
             Toggle("Autoplay AI Responses", isOn: $appSettings.autoplayVoice)
         } header: {
             Text("Voice Settings")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         } footer: {
             Text(appSettings.selectedVoiceProvider == .system
                  ? "Uses the device's built-in text-to-speech voices."
                  : "Uses OpenAI's neural voices for a higher-quality reading.")
-            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Section: Appearance
-
     private var appearanceSection: some View {
         Section {
-            Toggle("Dark Mode", isOn: $appSettings.isDarkMode)
-                .disabled(true)
-                .foregroundColor(.secondary)
+            // Replace old "Dark Mode" toggle with a segmented picker
+            Picker("App Theme", selection: $appSettings.themeMode) {
+                Text("System").tag(ThemeMode.system)
+                Text("Light").tag(ThemeMode.light)
+                Text("Dark").tag(ThemeMode.dark)
+            }
+            .pickerStyle(.segmented)
+
         } header: {
             Text("Appearance")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
-        } footer: {
-            Text("Dark Mode is currently locked.")
-                .foregroundColor(.secondary)
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Section: About
-
     private var aboutSection: some View {
         Section {
             NavigationLink(destination: AboutView()) {
@@ -270,10 +266,10 @@ struct SettingsView: View {
             }
         } header: {
             Text("About")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         } footer: {
             Text("Learn more about Ophelia, including version and credits.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
@@ -281,7 +277,6 @@ struct SettingsView: View {
     private var exportSection: some View {
         Section {
             Button("Export Discussion to JSON") {
-                // Attempt to create a temporary .json file of the conversation
                 if let fileURL = chatViewModel.exportConversationAsJSONFile() {
                     shareSheetItems = [fileURL]
                     isShowingShareSheet = true
@@ -291,10 +286,10 @@ struct SettingsView: View {
             }
         } header: {
             Text("Export")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         } footer: {
             Text("Export your chat history as a JSON file.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
@@ -309,7 +304,6 @@ struct SettingsView: View {
             }
             .alert("Clear Conversation History?", isPresented: $showClearHistoryAlert) {
                 Button("Delete", role: .destructive) {
-                    // Call the provided closure from parent to actually clear messages
                     clearMessages?()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -318,13 +312,11 @@ struct SettingsView: View {
             }
         } footer: {
             Text("Deleting the conversation history is irreversible. Make sure you want to remove all past messages.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: appSettings.isDarkMode))
+                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
 
     // MARK: - Persistence Helpers
-
-    /// Loads previously saved settings from `@AppStorage` data, if available.
     private func loadSettings() {
         guard let data = appSettingsData else { return }
         if let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
@@ -332,7 +324,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Saves the current `appSettings` to `@AppStorage`.
     private func saveSettings() {
         if let encoded = try? JSONEncoder().encode(appSettings) {
             appSettingsData = encoded
@@ -341,8 +332,6 @@ struct SettingsView: View {
 }
 
 // MARK: - Share Sheet Wrapper
-
-/// A simple UIViewControllerRepresentable that allows presenting the iOS share sheet.
 struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
     let activityItems: [Any]
     let applicationActivities: [UIActivity]?
@@ -353,8 +342,5 @@ struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
             applicationActivities: applicationActivities
         )
     }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
-        // No real-time updates needed
-    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

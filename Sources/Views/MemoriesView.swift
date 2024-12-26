@@ -20,7 +20,7 @@ struct MemoriesView: View {
         // A full-bleed background so no white gap appears at the top
         ZStack {
             // Extend the background color beneath the safe area
-            Color(UIColor.systemGroupedBackground)
+            Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
 
             // The main navigation structure

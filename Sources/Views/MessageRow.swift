@@ -87,11 +87,11 @@ struct MessageRow: View {
             .frame(maxWidth: .infinity, alignment: .leading) // Enforces wrapping within view bounds
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .background(
+                Color.Theme.bubbleBackground(isDarkMode: isDarkMode, isUser: false)
+            )            .clipShape(RoundedRectangle(cornerRadius: 20))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
-            )
+                    .stroke(Color.Theme.textSecondary(isDarkMode: isDarkMode).opacity(0.3), lineWidth: 1)            )
     }
 }

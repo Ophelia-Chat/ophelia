@@ -38,7 +38,6 @@ struct ChatView: View {
                     tempSettings: .constant(viewModel.appSettings)
                 )
             }
-            .preferredColorScheme(isDarkMode ? .dark : .light)
             // Runs final setup each time the view appears
             .onAppear {
                 Task {

@@ -11,9 +11,9 @@ import UIKit
 @main
 struct opheliaApp: App {
     @StateObject private var appInitializer = AppInitializer()
+    @StateObject private var appSettings = AppSettings()  // Must contain `themeMode`
 
     init() {
-        // Appearance changes are lightweight and can remain here
         setupAppearance()
         setupDebugging()
     }
@@ -22,12 +22,21 @@ struct opheliaApp: App {
         WindowGroup {
             Group {
                 if appInitializer.isInitialized {
-                    // The main view of your app, now displayed after initialization is complete
                     ChatView()
                         .tint(.blue)
-                        // .preferredColorScheme(.light)
+                        // Provide `appSettings` to all child views
+                        .environmentObject(appSettings)
+                        // 1) When this screen appears, apply the chosen theme
+                        .onAppear {
+                            applyGlobalAppearance(for: appSettings.themeMode)
+                        }
+                        // 2) If user changes theme mode in Settings, re-apply
+                        .onChange(of: appSettings.themeMode) { _, newValue in
+                            applyGlobalAppearance(for: newValue)
+                        }
+
                 } else {
-                    // A lightweight loading view shown until the app finishes background setup
+                    // A lightweight loading view shown until initialization finishes
                     ProgressView("Loading...")
                         .task {
                             await appInitializer.initialize()
@@ -39,61 +48,45 @@ struct opheliaApp: App {
 }
 
 // MARK: - Background Initializer
-/// Handles background initialization of expensive resources or services without blocking the main thread.
 @MainActor
 final class AppInitializer: ObservableObject {
     @Published var isInitialized = false
 
     func initialize() async {
-        // Perform non-UI tasks in a background priority to prevent blocking the main thread.
-        // Example tasks:
-        // - Pre-warm network requests or caches
-        // - Load large configuration files
-        // - Initialize services that do not need to block the UI
-
         await Task(priority: .background) {
-            // Simulate a small delay to represent fetching/initializing resources
             try? await Task.sleep(nanoseconds: 300_000_000)
-
-            // Here you might load AppSettings from disk or initialize services.
-            // For example:
-            // await ServiceManager.shared.initialize()
-            // or load cached messages/settings:
-            // await AppDataLoader.shared.loadData()
+            // Potentially load app settings or do other setup here.
         }.value
 
-        // Once everything is ready, update the UI
         isInitialized = true
     }
 }
 
 // MARK: - Setup Extensions
 private extension opheliaApp {
+
+    /// Toggles debug/experimental features if needed
     func setupDebugging() {
         #if DEBUG
-        // Enable debugging for layout issues
         UserDefaults.standard.set(true, forKey: "UIViewLayoutConstraintEnableLog")
-        // Enable backtrace for numeric errors
         setenv("CG_NUMERICS_SHOW_BACKTRACE", "1", 1)
-        // Suppress common warnings or workaround environment issues if needed
         UserDefaults.standard.setValue(false, forKey: "UIKeyboardLayoutStar_wantsWKWebView")
         #endif
     }
 
+    /// Applies a “base” UI appearance to nav bars, toolbars, tab bars, etc.
     func setupAppearance() {
         // MARK: Navigation Bar Appearance
         let navigationBarAppearance = UINavigationBarAppearance()
         navigationBarAppearance.configureWithOpaqueBackground()
-        navigationBarAppearance.backgroundColor = UIColor.systemGroupedBackground
-        navigationBarAppearance.backgroundEffect = nil   // remove any blur
-        navigationBarAppearance.shadowColor = .clear     // removes bottom hairline
+        navigationBarAppearance.backgroundColor = UIColor.systemBackground
+        navigationBarAppearance.backgroundEffect = nil
+        navigationBarAppearance.shadowColor = .clear
 
-        // Customize button text color if desired
         let buttonAppearance = UIBarButtonItemAppearance(style: .plain)
         buttonAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.systemBlue]
         navigationBarAppearance.buttonAppearance = buttonAppearance
 
-        // Also use the same for scroll edge (large titles) and compact appearances
         UINavigationBar.appearance().standardAppearance = navigationBarAppearance
         UINavigationBar.appearance().compactAppearance = navigationBarAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navigationBarAppearance
@@ -102,9 +95,10 @@ private extension opheliaApp {
         // MARK: Toolbar Appearance
         let toolbarAppearance = UIToolbarAppearance()
         toolbarAppearance.configureWithOpaqueBackground()
+        // For a “true black” effect in dark mode, you could switch to .black or .systemBackground
         toolbarAppearance.backgroundColor = UIColor.systemGroupedBackground
-        toolbarAppearance.backgroundEffect = nil  // remove any blur
-        toolbarAppearance.shadowColor = .clear    // removes bottom hairline
+        toolbarAppearance.backgroundEffect = nil
+        toolbarAppearance.shadowColor = .clear
 
         UIToolbar.appearance().standardAppearance = toolbarAppearance
         UIToolbar.appearance().compactAppearance = toolbarAppearance
@@ -127,6 +121,26 @@ private extension opheliaApp {
             UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
         }
         #endif
+    }
+
+    /// Override iOS’s interface style if user sets `.light` or `.dark`;
+    /// use `.unspecified` to respect the system’s current theme if `.system`.
+    func applyGlobalAppearance(for themeMode: ThemeMode) {
+        for scene in UIApplication.shared.connectedScenes {
+            if let windowScene = scene as? UIWindowScene {
+                for window in windowScene.windows {
+                    switch themeMode {
+                    case .system:
+                        // “Unspecified” means we do NOT override iOS’s normal behavior
+                        window.overrideUserInterfaceStyle = .unspecified
+                    case .light:
+                        window.overrideUserInterfaceStyle = .light
+                    case .dark:
+                        window.overrideUserInterfaceStyle = .dark
+                    }
+                }
+            }
+        }
     }
 }
 

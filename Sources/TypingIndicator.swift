@@ -29,7 +29,9 @@ struct TypingIndicator: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.Theme.bubbleBackground(isDarkMode: isDarkMode))
+        .background(
+            Color.Theme.bubbleBackground(isDarkMode: isDarkMode, isUser: false)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .onAppear {
             withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
