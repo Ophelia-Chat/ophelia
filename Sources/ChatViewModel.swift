@@ -1,17 +1,26 @@
 //
 //  ChatViewModel.swift
-//  ophelia
+//  Ophelia
+//
+//  Description:
+//  This file defines the primary ViewModel (ChatViewModel) for managing the chat experience.
+//  It coordinates sending user messages, receiving AI responses, and orchestrating memory storage,
+//  voice synthesis, and persistent user settings.
+//
+//  Dependencies (external to this file):
+//  - MutableMessage: A class representing a single chat message (with text, timestamps, etc.).
+//  - ChatServiceProtocol & concrete implementations (e.g. OpenAIChatService, AnthropicService, GitHubModelChatService)
+//  - VoiceServiceProtocol & concrete implementations (e.g. OpenAITTSService, SystemVoiceService)
+//  - AppSettings: Stores user preferences & credentials
+//  - MemoryStore: Handles user "memories" across sessions
+//  - ChatServiceError: An enum describing possible error states from the chat service
+//  - MessageDTO: A Codable struct that helps persist messages to disk/user defaults
+//  - iOS-specific frameworks (UIKit, SwiftUI, Combine, AVFoundation) used for background tasks,
+//    notifications, speech, etc.
 //
 //  Created by rob on 2024-11-27.
+//  Updated & refined for best practices and inline documentation.
 //
-//  Updates include:
-//   - An async memory retrieval call for advanced semantic matching.
-//   - Efficient token streaming with batching/throttling.
-//   - Truncation of older messages to manage context length.
-//   - Summarizing large sets of relevant memories to reduce token usage.
-//   - An optional TTS flow, persistent settings, and exportable conversation logs.
-//
-
 import SwiftUI
 import AVFoundation
 import Combine
@@ -26,6 +35,7 @@ private struct MessageDTO: Codable {
     let originProvider: String?
     let originModel: String?
 
+    /// Creates a new DTO from a MutableMessage, capturing all relevant fields for serialization.
     init(from message: MutableMessage) {
         self.id = message.id
         self.text = message.text
@@ -35,6 +45,7 @@ private struct MessageDTO: Codable {
         self.originModel = message.originModel
     }
 
+    /// Recreates a MutableMessage from the DTO. Useful when loading saved data.
     func toMessage() -> MutableMessage {
         MutableMessage(
             id: id,
@@ -47,9 +58,17 @@ private struct MessageDTO: Codable {
     }
 }
 
-/// The main ViewModel for our chat application.
-/// Manages sending/receiving messages to an AI service, storing/retrieving
-/// user memories, voice synthesis, and persistent user settings.
+/// The main ViewModel for the chat application.
+/// Manages sending/receiving messages from an AI service, storing/retrieving user memories,
+/// handling voice synthesis (TTS), and maintaining persistent user settings.
+///
+/// **Key Responsibilities:**
+/// - Storing and displaying the list of chat messages (`messages`).
+/// - Handling user input (`inputText`) and sending messages to the AI model.
+/// - Integrating with MemoryStore to embed user "memories" (facts) in prompts.
+/// - Managing user settings (API keys, model choices, TTS preferences) via AppSettings.
+/// - Persisting messages and settings to UserDefaults.
+/// - Providing a mechanism to export the conversation as JSON.
 @MainActor
 class ChatViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -60,13 +79,13 @@ class ChatViewModel: ObservableObject {
     /// The user's typed input (bound to a TextField or similar).
     @Published var inputText: String = ""
 
-    /// Indicates whether an AI response is currently streaming/processing.
+    /// Indicates whether an AI response is currently streaming or processing.
     @Published var isLoading: Bool = false
 
     /// The app’s user-configurable settings (API keys, provider choice, etc.).
     @Published private(set) var appSettings: AppSettings
 
-    /// If we encounter an error (e.g. invalid key), store it here to surface in the UI.
+    /// If an error (e.g. invalid key) occurs, store the message here to surface in the UI.
     @Published var errorMessage: String?
     @Published var showError: Bool = false
 
@@ -75,18 +94,31 @@ class ChatViewModel: ObservableObject {
 
     // MARK: - Private Services
 
+    /// Service responsible for sending requests and streaming AI responses.
     private var chatService: ChatServiceProtocol?
+
+    /// Service responsible for text-to-speech.
     private var voiceService: VoiceServiceProtocol?
+
+    /// Handles ongoing chat tasks (so they can be cancelled if needed).
     private var activeTask: Task<Void, Never>?
+
+    /// Handles ongoing speech tasks (so they can be cancelled if needed).
     private var speechTask: Task<Void, Never>?
+
+    /// For handling various Combine subscriptions (e.g., notifications).
     private var subscriptions = Set<AnyCancellable>()
 
+    /// Concrete TTS services (for both OpenAI and system-based).
     private var openAITTSService: OpenAITTSService?
     private var systemVoiceService: SystemVoiceService?
 
     // MARK: - Persistence Tools
 
+    /// Reference to UserDefaults for reading/writing settings and messages.
     private let userDefaults: UserDefaults
+
+    /// JSON decoders/encoders for saving/loading messages and settings.
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
@@ -98,39 +130,41 @@ class ChatViewModel: ObservableObject {
     /// Max time interval before forcibly flushing tokens, to keep UI responsive.
     private let tokenFlushInterval: TimeInterval = 0.2
 
+    /// Accumulates tokens as they stream in, so we can update the UI in batches.
     private var tokenBuffer: String = ""
+
+    /// Track the time we last flushed tokens, to handle forced flush scheduling.
     private var lastFlushDate = Date()
+
+    /// A scheduled task for automatically flushing tokens if no new tokens arrive soon.
     private var flushTask: Task<Void, Never>? = nil
 
     // MARK: - Message History Truncation
 
-    /// We keep up to 10 recent user/assistant messages (plus possible summary).
+    /// We keep up to 10 recent user/assistant messages (plus possibly a summary).
     private let maxHistoryCount = 10
 
-    /// If we prune older messages, we can insert a short placeholder or summary.
+    /// If older messages are pruned, this placeholder text notes that a summary was performed.
     private let truncatedSummaryText =
-        "Previous context has been summarized to keep message size manageable."
+    "Previous context has been summarized to keep message size manageable."
 
     // MARK: - Initialization
 
     /**
-     Creates a new ChatViewModel, setting up user defaults and JSON coders,
-     plus a MemoryStore for user facts. Optionally provide a custom userDefaults
-     (for testing or advanced usage).
+     Initializes a new `ChatViewModel`, setting up default user settings and memory store.
+     - Parameter userDefaults: The UserDefaults instance to use for loading/saving settings and messages.
      */
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 
-        // Load your default app settings
+        // Load default app settings (they can later be overwritten by loadSettings()).
         self.appSettings = AppSettings()
 
-        // Optionally create an EmbeddingService if you want advanced memory
-        // e.g. let embeddingService = EmbeddingService(apiKey: "<OPENAI_API_KEY>")
-        // and pass it to MemoryStore:
+        // Initialize the memory store (optionally with an embedding service).
         self.memoryStore = MemoryStore(
-            // embeddingService: embeddingService // only if you wish
+            // embeddingService: ...
         )
 
         setupNotifications()
@@ -139,9 +173,9 @@ class ChatViewModel: ObservableObject {
     // MARK: - Lifecycle Setup
 
     /**
-     Called (for instance) when the app or view first appears.
-     Loads persisted settings/messages, sets up the ChatService,
-     and finishes any other initialization steps.
+     Called when the app or view first appears.
+     Loads persisted settings and messages, sets up the chosen chat/voice services,
+     and completes initialization.
      */
     func finalizeSetup() async {
         await loadSettings()
@@ -152,11 +186,12 @@ class ChatViewModel: ObservableObject {
         print("[ChatViewModel] Setup complete: Provider = \(appSettings.selectedProvider), Model = \(appSettings.selectedModelId)")
     }
 
-    // MARK: - Masking API Key in Logs
+    // MARK: - Masking API Keys
 
     /**
-     Takes an API key string and returns a masked version for logs,
-     e.g. "sk-12ab...***...89xy".
+     Returns a masked version of the given API key for safe logging, e.g. "sk-12ab...***...89xy".
+     - Parameter key: The actual API key string.
+     - Returns: A partially masked string suitable for logs.
      */
     private func maskAPIKey(_ key: String) -> String {
         guard key.count > 8 else { return "***" }
@@ -166,16 +201,17 @@ class ChatViewModel: ObservableObject {
     // MARK: - Sending Messages
 
     /**
-     Handles the user pressing "Send" or otherwise confirming input.
+     Called when the user presses "Send" or confirms input in the chat UI.
      - Validates that we have text and a provider key.
-     - Appends the user's message to `messages`.
-     - Checks if it's a memory command, potentially adds an "ack" response.
-     - Triggers the AI flow to get a new response.
+     - Stores the user's message in `messages`.
+     - Checks if the input is a memory command (e.g. "remember that ..."), and handles if so.
+     - Initiates the AI completion flow to get the assistant’s response.
      */
     func sendMessage() {
         print("[Debug] Provider: \(appSettings.selectedProvider)")
         print("[Debug] Using API Key: \(maskAPIKey(appSettings.currentAPIKey))")
 
+        // 1) Validate non-empty input and valid API key.
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard !appSettings.currentAPIKey.isEmpty else {
             print("[ChatViewModel] No valid API key for provider \(appSettings.selectedProvider).")
@@ -183,25 +219,24 @@ class ChatViewModel: ObservableObject {
             return
         }
 
-        // 1) Store the user's message in the conversation
+        // 2) Append the user's message to the conversation.
         let userMessage = MutableMessage(text: inputText, isUser: true)
         messages.append(userMessage)
 
-        // Save now so we don't lose it
+        // Persist messages so we don't lose them if the app closes.
         Task { await saveMessages() }
 
-        // Capture the text, then clear input
+        // Capture the user text; clear the input field.
         let currentUserText = inputText
         inputText = ""
 
-        // 2) Check if it's a memory command
+        // 3) Check if it's a recognized memory command, and respond if so.
         if let ackText = processMemoryCommand(currentUserText) {
-            // Add an acknowledgment message from the assistant perspective
             let ack = MutableMessage(text: ackText, isUser: false)
             messages.append(ack)
         }
 
-        // 3) Even if it's a memory command, we still want to see an AI response
+        // 4) Regardless of memory commands, we request an AI response next.
         isLoading = true
         stopCurrentOperations()
 
@@ -214,11 +249,12 @@ class ChatViewModel: ObservableObject {
 
     /**
      Checks if user typed a known memory command:
-     - "Remember that ..."
-     - "Forget that ..."
-     - "Forget everything"
-     - "What do you remember about me?"
-     If recognized, returns a short assistant text acknowledging the command. Otherwise `nil`.
+     - "remember that ..."
+     - "forget that ..."
+     - "forget everything"
+     - "what do you remember about me?"
+     If recognized, returns an assistant response acknowledging the command.
+     Otherwise returns `nil`.
      */
     private func processMemoryCommand(_ text: String) -> String? {
         let lowered = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -238,7 +274,6 @@ class ChatViewModel: ObservableObject {
             return "All memories cleared."
 
         } else if lowered == "what do you remember about me?" {
-            // Summarize stored memories
             let allMemories = memoryStore.memories.map {
                 "• \($0.content) (on \($0.timestamp.formatted()))"
             }
@@ -249,15 +284,14 @@ class ChatViewModel: ObservableObject {
             }
         }
 
-        // Not a recognized command
         return nil
     }
 
-    // MARK: - Stopping Tasks
+    // MARK: - Managing Tasks
 
     /**
-     Stops any in-progress chat or voice tasks, sets `isLoading` to false.
-     Useful if user taps "Stop" or app goes to background.
+     Stops any in-progress chat or voice tasks, and resets `isLoading`.
+     Useful if the user cancels or the app background/foreground changes.
      */
     func stopCurrentOperations() {
         stopCurrentSpeech()
@@ -269,28 +303,27 @@ class ChatViewModel: ObservableObject {
     // MARK: - Clearing Messages
 
     /**
-     Clears all messages from the current conversation, then persists the empty list.
+     Removes all messages from the current session, then persists the updated empty state.
      */
     func clearMessages() {
         stopCurrentOperations()
         messages.removeAll()
-        Task {
-            await saveMessages()
-        }
+        Task { await saveMessages() }
         print("[ChatViewModel] Messages cleared.")
     }
 
     // MARK: - Settings Management
 
     /**
-     Called when the user changes any app settings, such as API key or provider.
-     - Re-initializes the chat service if needed.
-     - Re-initializes or updates the voice service if TTS changed.
-     - Persists the updated settings to user defaults.
+     Updates the ViewModel with a new `AppSettings` object (possibly from the UI).
+     - Stops current tasks.
+     - Re-initializes services if the provider or TTS settings changed.
+     - Persists updated settings to disk.
      */
     func updateAppSettings(_ newSettings: AppSettings) {
         stopCurrentOperations()
 
+        // Capture old states to see what changed.
         let oldProvider = appSettings.selectedProvider
         let oldVoiceProvider = appSettings.selectedVoiceProvider
         let oldSystemVoiceId = appSettings.selectedSystemVoiceId
@@ -299,17 +332,18 @@ class ChatViewModel: ObservableObject {
 
         appSettings = newSettings
 
+        // Warn if the new provider has no key set.
         if appSettings.currentAPIKey.isEmpty {
             print("[ChatViewModel] Warning: Provider \(appSettings.selectedProvider) selected without a valid key.")
         }
 
-        // Re-init chat service if provider or key changed
+        // If provider or API key changed, re-init the chat service.
         if oldProvider != newSettings.selectedProvider ||
            appSettings.currentAPIKey != newSettings.currentAPIKey {
             initializeChatService(with: newSettings)
         }
 
-        // Re-init voice service if TTS settings changed
+        // If TTS settings changed, re-init or update the voice service.
         if oldVoiceProvider != newSettings.selectedVoiceProvider ||
            oldSystemVoiceId != newSettings.selectedSystemVoiceId ||
            oldOpenAIVoice != newSettings.selectedOpenAIVoice ||
@@ -317,6 +351,7 @@ class ChatViewModel: ObservableObject {
             updateVoiceService(with: newSettings, oldVoiceProvider: oldVoiceProvider)
         }
 
+        // Persist new settings.
         Task { await saveSettings() }
         print("[ChatViewModel] App settings updated and saved.")
     }
@@ -324,8 +359,8 @@ class ChatViewModel: ObservableObject {
     // MARK: - App Lifecycle Notifications
 
     /**
-     Subscribes to notifications (e.g. willResignActive) so we can
-     stop tasks if user backgrounds the app.
+     Subscribes to `UIApplication.willResignActiveNotification` so we can
+     stop chat or speech tasks if the app is backgrounded.
      */
     private func setupNotifications() {
         NotificationCenter.default
@@ -339,8 +374,7 @@ class ChatViewModel: ObservableObject {
     // MARK: - Chat Service Initialization
 
     /**
-     Creates or re-creates a chat service instance based on the current AppSettings.
-     Typically called when user changes provider or API key.
+     Sets up or re-sets the chat service based on the current provider and API key.
      */
     private func initializeChatService(with settings: AppSettings) {
         guard !settings.currentAPIKey.isEmpty else {
@@ -367,7 +401,7 @@ class ChatViewModel: ObservableObject {
     // MARK: - Voice Service Initialization
 
     /**
-     Sets up or tears down text-to-speech services, based on the user’s chosen TTS provider.
+     Sets up or tears down the TTS services based on the user’s chosen TTS provider.
      */
     private func initializeVoiceService(with settings: AppSettings) {
         stopCurrentSpeech()
@@ -395,13 +429,15 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     If only certain TTS settings changed (like the voice ID), we can update
-     rather than recreate the entire voice service, if desired.
+     Called when TTS-specific settings change (e.g., switching voices).
+     If the TTS provider remains the same, we can sometimes just update the service.
+     Otherwise, we re-initialize from scratch.
      */
     private func updateVoiceService(with settings: AppSettings,
                                     oldVoiceProvider: VoiceProvider) {
         stopCurrentSpeech()
 
+        // If the voice provider is the same, we may only need to update its voice setting.
         if oldVoiceProvider == settings.selectedVoiceProvider {
             switch settings.selectedVoiceProvider {
             case .system:
@@ -411,6 +447,7 @@ class ChatViewModel: ObservableObject {
                 print("[ChatViewModel] Updated system voice to: \(settings.selectedSystemVoiceId)")
 
             case .openAI:
+                // If we already have an OpenAITTSService, just update its voice.
                 if let service = openAITTSService {
                     service.updateVoice(settings.selectedOpenAIVoice)
                     print("[ChatViewModel] Updated OpenAI voice to: \(settings.selectedOpenAIVoice)")
@@ -419,6 +456,7 @@ class ChatViewModel: ObservableObject {
                 }
             }
         } else {
+            // Provider changed entirely, do a full re-init.
             initializeVoiceService(with: settings)
         }
     }
@@ -426,12 +464,11 @@ class ChatViewModel: ObservableObject {
     // MARK: - Load/Save Settings and Messages
 
     /**
-     Asynchronously loads any persisted app settings from `UserDefaults`.
-     If none found, uses defaults in `AppSettings` (like an empty API key).
+     Loads any saved AppSettings from UserDefaults, replacing the defaults if found.
      */
     private func loadSettings() async {
-        if let savedSettings = userDefaults.data(forKey: "appSettingsData"),
-           let decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettings) {
+        if let savedSettingsData = userDefaults.data(forKey: "appSettingsData"),
+           let decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettingsData) {
             self.appSettings = decodedSettings
             print("[ChatViewModel] Loaded saved app settings.")
         } else {
@@ -440,7 +477,7 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     Loads the saved chat messages from `UserDefaults`. If none found, starts empty.
+     Loads the saved conversation messages from UserDefaults. If none found, starts empty.
      */
     func loadInitialData() async {
         if let savedMessages = userDefaults.data(forKey: "savedMessages"),
@@ -453,7 +490,7 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     Encodes the current `messages` array to JSON and persists it in `UserDefaults`.
+     Persists the current list of messages to UserDefaults by encoding them into JSON.
      */
     private func saveMessages() async {
         guard let encoded = try? encoder.encode(messages.map { MessageDTO(from: $0) }) else { return }
@@ -462,7 +499,7 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     Persists the current `appSettings` to `UserDefaults`.
+     Persists the current AppSettings to UserDefaults by encoding to JSON.
      */
     private func saveSettings() async {
         guard let encoded = try? encoder.encode(appSettings) else { return }
@@ -473,13 +510,13 @@ class ChatViewModel: ObservableObject {
     // MARK: - Main Send Flow (Chat Completion)
 
     /**
-     Orchestrates sending the user’s message to the chosen AI service,
-     then processes the streaming response tokens as they arrive.
+     Coordinates sending the user message to the AI service, then receiving and handling the
+     streaming response tokens. Also manages insertion of system messages (e.g. instructions).
      */
     private func performSendFlow() async {
         print("[ChatViewModel] Sending message to API...")
 
-        // Create a placeholder AI message that we'll populate with tokens
+        // 1) Create a placeholder AI message that we'll update with streaming tokens.
         let aiMessage = MutableMessage(
             text: "",
             isUser: false,
@@ -493,23 +530,21 @@ class ChatViewModel: ObservableObject {
                 throw ChatServiceError.invalidAPIKey
             }
 
-            // Build the chat payload (and possibly truncate older messages)
-            // Note: We call `await` now, because prepareMessagesPayload might do async retrieval
+            // 2) Build the list of messages to send, possibly including relevant memories.
             let payload = await prepareMessagesPayload()
 
-            // Insert a system message if needed (OpenAI or GitHub)
+            // 3) If using OpenAI or GitHub, prepend a system message to the conversation if set.
             if (appSettings.selectedProvider == .openAI || appSettings.selectedProvider == .githubModel),
                !appSettings.systemMessage.isEmpty {
-                // Prepend a system message
                 var updated = payload
                 updated.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
 
-                // For the Anthropic provider, we pass `systemMessage` separately below.
-                let systemMessage = appSettings.selectedProvider == .anthropic
-                    ? (appSettings.systemMessage.isEmpty ? nil : appSettings.systemMessage)
-                    : nil
+                // For Anthropic, we pass the system message separately instead of as a list item.
+                let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
+                                    ? appSettings.systemMessage
+                                    : nil
 
-                // Now request streaming from the chat service
+                // Stream the response.
                 let stream = try await service.streamCompletion(
                     messages: updated,
                     model: appSettings.selectedModelId,
@@ -517,12 +552,12 @@ class ChatViewModel: ObservableObject {
                 )
                 let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
                 await finalizeResponseProcessing(completeResponse: completeResponse)
-            }
-            else {
-                // If not OpenAI or GitHub, handle Anthropic or other providers similarly
-                let systemMessage = appSettings.selectedProvider == .anthropic
-                    ? (appSettings.systemMessage.isEmpty ? nil : appSettings.systemMessage)
-                    : nil
+
+            } else {
+                // For Anthropic or other providers, handle system messages differently.
+                let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
+                                    ? appSettings.systemMessage
+                                    : nil
 
                 let stream = try await service.streamCompletion(
                     messages: payload,
@@ -533,6 +568,7 @@ class ChatViewModel: ObservableObject {
                 await finalizeResponseProcessing(completeResponse: completeResponse)
             }
         } catch {
+            // If we fail to fetch a response, handle the error and remove the empty AI placeholder.
             print("[ChatViewModel] Error fetching response: \(error)")
             handleError(error)
             removeLastAIMessage()
@@ -542,16 +578,18 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     After we receive the final AI text, decide if we should remove the placeholder
-     (in case it’s empty) or speak the message. Then persist messages.
+     Once the complete text of the AI response is obtained, decides whether to remove
+     an empty placeholder or keep the message and optionally speak it. Then persists messages.
      */
     private func finalizeResponseProcessing(completeResponse: String) async {
         print("[ChatViewModel] Received response: \(completeResponse)")
-        let trimmed = completeResponse.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let trimmed = completeResponse.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty, let last = messages.last, !last.isUser {
+            // If the AI message is empty, remove the placeholder.
             messages.removeLast()
         } else {
+            // If we have text, optionally speak it if autoplay is on.
             speakMessage(trimmed)
             await saveMessages()
         }
@@ -560,60 +598,50 @@ class ChatViewModel: ObservableObject {
     // MARK: - Incorporating Memories
 
     /**
-     Builds the payload of user/assistant messages to send to the AI, optionally retrieving
-     relevant user memories if an advanced memory system is in place. This function is async
-     because memory retrieval can involve embeddings or network calls.
+     Constructs the list of user/assistant messages to be sent to the AI service,
+     optionally appending relevant user "memories" as system content. Prunes older messages
+     if the conversation is very long, to reduce token usage.
      */
     private func prepareMessagesPayload() async -> [[String: String]] {
         var messagesPayload: [[String: String]] = []
 
-        // 1) If there's a last user message, see if we can retrieve relevant user facts.
+        // 1) Check the last user message to see if we can retrieve relevant memories.
         if let lastUserMsg = messages.last(where: { $0.isUser })?.text {
-            // If you have an embedding-based MemoryStore, call it async:
-            // let relevantMemories = await memoryStore.retrieveRelevant(to: lastUserMsg, topK: 5)
-            //
-            // If your MemoryStore is substring-based only, you can remove the 'await':
-            // let relevantMemories = memoryStore.retrieveRelevant(to: lastUserMsg)
+            // Memory retrieval can be async if it involves embeddings or network requests.
             let relevantMemories = await memoryStore.retrieveRelevant(to: lastUserMsg, topK: 5)
 
-            // If any relevant memories found, inject them as a system message.
             if !relevantMemories.isEmpty {
                 if relevantMemories.count > 5 {
-                    // Summarize if we have many relevant memories
+                    // Summarize if there are many relevant memories.
                     let shortSummary = summarizeMemories(relevantMemories)
-                    messagesPayload.append([
-                        "role": "system",
-                        "content": shortSummary
-                    ])
+                    messagesPayload.append(["role": "system", "content": shortSummary])
                 } else {
+                    // Otherwise, insert them as bullet-list facts.
                     let bulletList = relevantMemories
                         .map { "- \($0.content)" }
                         .joined(separator: "\n")
-                    messagesPayload.append([
-                        "role": "system",
-                        "content": "Relevant facts:\n\(bulletList)"
-                    ])
+                    messagesPayload.append(["role": "system", "content": "Relevant facts:\n\(bulletList)"])
                 }
             }
         }
 
-        // 2) Next, gather existing messages (excluding the newly appended AI placeholder)
+        // 2) Exclude the newly appended AI placeholder from the conversation history.
         var truncatedMessages = Array(messages.dropLast())
 
-        // If we have more than maxHistoryCount, prune older ones
+        // If we have more messages than allowed, prune the oldest.
         if truncatedMessages.count > maxHistoryCount {
             let olderCount = truncatedMessages.count - maxHistoryCount
             truncatedMessages.removeFirst(olderCount)
 
-            // Optionally insert a short summary placeholder or an actual summary
-            truncatedMessages.insert(.init(
+            // Insert a summary placeholder so the user knows older content was truncated.
+            truncatedMessages.insert(MutableMessage(
                 id: UUID(),
                 text: truncatedSummaryText,
                 isUser: false
             ), at: 0)
         }
 
-        // Convert truncated messages to the standard format
+        // 3) Convert truncated messages into the format the AI expects (role, content).
         for message in truncatedMessages {
             let cleaned = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { continue }
@@ -628,10 +656,8 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     Summarizes a large list of relevant memories into one short paragraph
-     to reduce token usage and keep the prompt concise. A naive approach:
-     just concatenates them. In production, you could call an LLM or do
-     more advanced summarizing.
+     Summarizes a list of memories into a short string to reduce token usage.
+     Could be improved by calling a separate summarization routine or LLM.
      */
     private func summarizeMemories(_ memories: [Memory]) -> String {
         let allContent = memories.map { $0.content }.joined(separator: ". ")
@@ -641,9 +667,11 @@ class ChatViewModel: ObservableObject {
     // MARK: - Stream Handling
 
     /**
-     Consumes tokens from an AsyncThrowingStream (provided by the chat service)
-     and progressively updates the AI message text in the UI. Supports haptic
-     feedback and a flush mechanism to keep partial text responsive.
+     Consumes tokens from an `AsyncThrowingStream<String, Error>` (provided by the chat service),
+     progressively appending them to the AI message in the UI. Supports batching and haptic feedback.
+     - Parameter stream: The async stream of partial text tokens.
+     - Parameter aiMessage: The placeholder AI message to which tokens are appended.
+     - Returns: The final concatenated response from the AI.
      */
     private func handleResponseStream(
         _ stream: AsyncThrowingStream<String, Error>,
@@ -652,16 +680,19 @@ class ChatViewModel: ObservableObject {
         var completeResponse = ""
         var tokenCount = 0
 
+        // Prepare haptic feedback
         let feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
         let finalFeedbackGenerator = UINotificationFeedbackGenerator()
         feedbackGenerator.prepare()
         finalFeedbackGenerator.prepare()
 
+        // Reset token buffering
         tokenBuffer = ""
         lastFlushDate = Date()
         flushTask?.cancel()
         flushTask = nil
 
+        // Consume tokens as they arrive.
         for try await content in stream {
             if Task.isCancelled { break }
 
@@ -669,20 +700,20 @@ class ChatViewModel: ObservableObject {
             completeResponse.append(content)
             tokenCount += 1
 
-            // Flush tokens in batches
+            // Flush every tokenBatchSize tokens for responsiveness.
             if tokenCount % tokenBatchSize == 0 {
                 await flushTokens(aiMessage: aiMessage)
             } else {
                 scheduleFlush(aiMessage: aiMessage)
             }
 
-            // Haptic feedback every 5 tokens
+            // Provide light haptic feedback every 5 tokens.
             if tokenCount % 5 == 0 {
                 feedbackGenerator.impactOccurred()
             }
         }
 
-        // Ensure any leftover tokens are applied at the end
+        // Ensure we flush any leftover tokens at the end.
         await flushTokens(aiMessage: aiMessage, force: true)
         finalFeedbackGenerator.notificationOccurred(.success)
 
@@ -690,8 +721,8 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     If we haven't flushed tokens in a while, schedule a flush after tokenFlushInterval
-     unless new tokens come in. This keeps partial text from building up too long.
+     Schedules a flush after `tokenFlushInterval` if no further tokens arrive,
+     preventing partial text from building up too long.
      */
     private func scheduleFlush(aiMessage: MutableMessage) {
         flushTask?.cancel()
@@ -703,8 +734,9 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     Moves any accumulated tokens into the final AI message text. If `force` is true,
-     flushes even if we haven't hit the batch size or time limit.
+     Moves any accumulated tokens into the AI message text.
+     - Parameter aiMessage: The AI message being updated.
+     - Parameter force: If `true`, flushes even if batch/time thresholds aren't reached.
      */
     private func flushTokens(aiMessage: MutableMessage, force: Bool = false) async {
         guard force || !tokenBuffer.isEmpty else { return }
@@ -720,8 +752,8 @@ class ChatViewModel: ObservableObject {
     // MARK: - Error Handling
 
     /**
-     Processes an error from chat or TTS. If it's a known ChatServiceError,
-     set a user-facing message. Otherwise, show a generic error.
+     Sets an error message for display if the error is recognized as a ChatServiceError,
+     otherwise displays a generic fallback. Triggers a UI alert or error banner.
      */
     private func handleError(_ error: Error) {
         if let chatError = error as? ChatServiceError {
@@ -737,13 +769,14 @@ class ChatViewModel: ObservableObject {
         } else {
             errorMessage = "An unexpected error occurred"
         }
+
         showError = true
         print("[ChatViewModel] Error: \(errorMessage ?? "Unknown error")")
     }
 
     /**
-     If the last message is from the AI, remove it—used when an error occurs
-     or if the response was empty.
+     If the last message is from the AI (i.e., a placeholder), remove it—useful if the response
+     is empty or if an error occurs.
      */
     private func removeLastAIMessage() {
         if let last = messages.last, !last.isUser {
@@ -754,7 +787,7 @@ class ChatViewModel: ObservableObject {
     // MARK: - Speech Handling
 
     /**
-     Stops any in-progress speech synthesis tasks.
+     Stops any currently playing TTS.
      */
     private func stopCurrentSpeech() {
         speechTask?.cancel()
@@ -763,7 +796,8 @@ class ChatViewModel: ObservableObject {
     }
 
     /**
-     If the user enabled `autoplayVoice` in settings, speak the AI's response text asynchronously.
+     If `autoplayVoice` is enabled in settings, speaks the AI response with the chosen TTS provider.
+     - Parameter text: The AI’s response to be spoken aloud.
      */
     private func speakMessage(_ text: String) {
         guard appSettings.autoplayVoice, !text.isEmpty else { return }
@@ -775,13 +809,12 @@ class ChatViewModel: ObservableObject {
                 print("[ChatViewModel] Speech completed successfully.")
             } catch {
                 print("[ChatViewModel] Speech error: \(error)")
-                // Optionally add fallback logic if TTS fails
             }
         }
     }
 
     /**
-     Optionally updates the last assistant message if you want to do partial updates
+     Helper for partial updating of the last assistant message, if you want to append partial text
      without creating new messages. Currently not widely used in this flow.
      */
     private func updateLastAssistantMessage(with content: String) {
@@ -794,16 +827,15 @@ class ChatViewModel: ObservableObject {
     // MARK: - Exporting Conversation
 
     /**
-     Generates a temporary JSON file containing the entire conversation. Useful
-     if the user wants to export or back up their chat session.
-     - Returns: The file URL if successful, or `nil` on error.
+     Creates a temporary JSON file containing the entire conversation. Useful for export/share.
+     - Returns: The file URL if successful, or `nil` on failure.
      */
     func exportConversationAsJSONFile() -> URL? {
         let messageDTOs = messages.map { MessageDTO(from: $0) }
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let jsonData = try encoder.encode(messageDTOs)
+            let exportEncoder = JSONEncoder()
+            exportEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let jsonData = try exportEncoder.encode(messageDTOs)
 
             let tempDir = FileManager.default.temporaryDirectory
             let filename = "conversation-\(UUID().uuidString).json"
@@ -818,8 +850,9 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Deinit
+    // MARK: - Deinitialization
 
+    /// Called when this ViewModel is about to be removed from memory.
     deinit {
         print("[ChatViewModel] Deinitialized.")
     }

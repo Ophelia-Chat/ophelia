@@ -2,280 +2,263 @@
 //  SettingsView.swift
 //  ophelia
 //
+//  Description:
+//  A SwiftUI form for adjusting chat settings (provider, model, API key, etc.),
+//  incorporating a local copy (`@State var localSettings`) that is synced to the
+//  `ChatViewModel` in real-time. Also uses an ID-based force-refresh approach
+//  (`reloadID`) to ensure immediate UI updates on provider/model changes.
+//
+//  Note:
+//  - We remove any extra NavigationView here, since ChatSettingsSheet already
+//    provides a NavigationStack for this content.
+//  - The “Done” button calls `dismissManually()`, using `@Environment(\.presentationMode)`
+//    for older iOS versions if you want a secondary approach to dismiss.
+//  - The “Refresh Models” button and automatic fetch in `.onChange(of: selectedProvider)`
+//    ensures new model lists are fetched immediately.
+//
+//  Usage:
+//   - This view is typically presented by ChatSettingsSheet, which wraps it
+//     in a NavigationStack and adds a “Done” button to dismiss the sheet.
+//
 //  Created by rob on 2024-11-27.
 //
 
 import SwiftUI
 import AVFoundation
 
-/// A SwiftUI view that displays and edits application settings,
-/// including AI provider, model, API keys, system message, TTS voice,
-/// and a dedicated section for viewing user memories.
-struct SettingsView: View {
-    // MARK: - Observed Properties
+/// A simple UIActivityViewController (share sheet) wrapper for SwiftUI
+struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let applicationActivities: [UIActivity]?
 
-    /// The view model that manages chat messages and settings (including memory storage).
-    @ObservedObject var chatViewModel: ChatViewModel
-    
-    /// Persisted settings data; used to initialize and store `appSettings`.
-    @AppStorage("appSettingsData") private var appSettingsData: Data?
-
-    /// A local copy of the app settings, which gets persisted and pushed
-    /// back into `chatViewModel` on changes.
-    @State private var appSettings = AppSettings()
-    
-    /// For dismissing the settings view (if presented modally).
-    @Environment(\.dismiss) var dismiss
-
-    /// Capture the system's color scheme for `.system` logic
-    @Environment(\.colorScheme) private var colorScheme
-
-    // Cached system voices, etc.
-    @State private var systemVoices: [AVSpeechSynthesisVoice] = []
-    @State private var showClearHistoryAlert = false
-    @State private var shareSheetItems: [Any] = []
-    @State private var isShowingShareSheet = false
-
-    var clearMessages: (() -> Void)? = nil
-
-    private let openAIVoices = [
-        ("alloy", "Alloy"), ("echo", "Echo"), ("fable", "Fable"),
-        ("onyx", "Onyx"),   ("nova", "Nova"), ("shimmer", "Shimmer")
-    ]
-
-    // MARK: - Computed: Determine “isDarkMode” from `themeMode` & system
-    private var isDarkMode: Bool {
-        switch appSettings.themeMode {
-        case .dark:
-            return true
-        case .light:
-            return false
-        case .system:
-            // Fallback on the device setting
-            return (colorScheme == .dark)
-        }
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
     }
 
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+/// The main settings form. Uses a local copy of AppSettings (`localSettings`) that
+/// syncs changes back to `chatViewModel` on each modification. Also offers a refresh
+/// mechanism (`reloadID`) so the UI re-initializes subviews immediately.
+struct SettingsView: View {
+    // MARK: - Observed Properties
+    
+    /// The main ChatViewModel controlling app settings and logic.
+    @ObservedObject var chatViewModel: ChatViewModel
+    
+    // MARK: - Local State
+    
+    /// A local copy of the settings we display and edit in the form.
+    @State private var localSettings = AppSettings()
+    
+    /// A unique ID to force SwiftUI to rebuild the form (e.g. after provider/model changes).
+    @State private var reloadID = UUID()
+    
+    /// A cache of available AVSpeechSynthesisVoices, if using system TTS.
+    @State private var systemVoices: [AVSpeechSynthesisVoice] = []
+    
+    /// Data for sharing an exported JSON file.
+    @State private var shareSheetItems: [Any] = []
+    
+    /// Toggles the share sheet for exporting chat history.
+    @State private var isShowingShareSheet = false
+    
+    /// Optional callback to clear messages (e.g. “Clear Conversation History”).
+    var clearMessages: (() -> Void)? = nil
+    
+    /// For iOS <15 style dismissal from a Navigation-based context.
+    @Environment(\.presentationMode) private var presentationMode
+    
     // MARK: - Body
+    
     var body: some View {
+        // We rely on the parent to provide a NavigationStack or NavigationView context.
         Form {
             providerSection
             modelSection
             apiKeySection
             systemMessageSection
             voiceSection
-            appearanceSection
-            aboutSection
+            themeSection
             exportSection
             clearHistorySection
         }
-        .formStyle(.grouped)
+        .id(reloadID)  // Forces a rebuild when we set `reloadID = UUID()`
         .navigationTitle("Settings")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    // 1) Save local appSettings to UserDefaults
-                    saveSettings()
-                    // 2) Update the actual ChatViewModel with new settings
-                    chatViewModel.updateAppSettings(appSettings)
-                    dismiss()
-                }
-            }
-        }
+        // For exporting JSON, displayed as a share sheet
         .sheet(isPresented: $isShowingShareSheet) {
             ActivityViewControllerWrapper(activityItems: shareSheetItems, applicationActivities: nil)
         }
-        // Use a dynamic background that checks `isDarkMode`
-        .background(
-            Color.Theme.primaryGradient(isDarkMode: isDarkMode)
-                .ignoresSafeArea()
-        )
+        // Initialize localSettings from ChatViewModel on appear
         .onAppear {
-            loadSettings()
+            localSettings = chatViewModel.appSettings
             systemVoices = VoiceHelper.getAvailableVoices()
-
-            // Validate the currently selected system voice.
-            if !VoiceHelper.isValidVoiceIdentifier(appSettings.selectedSystemVoiceId) {
-                appSettings.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()
-                saveSettings()
-            }
         }
-        .onChange(of: appSettings) { _, _ in
-            // Auto-persist changes whenever appSettings changes
-            saveSettings()
+        // Each time localSettings changes, push to chatViewModel
+        .onChange(of: localSettings) { _, newValue in
+            chatViewModel.updateAppSettings(newValue)
+        }
+        // If the user changes the model ID, we might refresh the form so the label updates
+        .onChange(of: localSettings.selectedModelId) { _, _ in
+            reloadID = UUID()
         }
     }
-
-    // MARK: - Section: Chat Provider
+    
+    // MARK: - Provider Section
+    
     private var providerSection: some View {
-        Section {
-            Picker("Provider", selection: $appSettings.selectedProvider) {
+        Section(
+            header: Text("Chat Provider"),
+            footer: Text(providerFooter(localSettings.selectedProvider))
+        ) {
+            Picker("Provider", selection: $localSettings.selectedProvider) {
                 ForEach(ChatProvider.allCases) { provider in
                     Text(provider.rawValue).tag(provider)
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: appSettings.selectedProvider) { _, newProvider in
-                let availableModels = newProvider.availableModels
-                if !availableModels.contains(where: { $0.id == appSettings.selectedModelId }) {
-                    appSettings.selectedModelId = newProvider.defaultModel.id
+            .onChange(of: localSettings.selectedProvider) { _, newProvider in
+                Task {
+                    // Fetch the dynamic model list for the newly selected provider
+                    await fetchModels(for: newProvider)
                 }
+                // If the old model ID isn't valid for the new provider, default to the provider's first model
+                if !newProvider.availableModels.contains(where: { $0.id == localSettings.selectedModelId }) {
+                    localSettings.selectedModelId = newProvider.defaultModel.id
+                }
+                // Force immediate UI refresh
+                reloadID = UUID()
             }
-        } header: {
-            Text("Chat Provider")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        } footer: {
-            Text(appSettings.selectedProvider == .openAI
-                 ? "Uses OpenAI's GPT models"
-                 : appSettings.selectedProvider == .anthropic
-                 ? "Uses Anthropic's Claude models"
-                 : "Uses GitHub/Azure-based model endpoints.")
-            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
-
-    // MARK: - Section: Model
+    
+    // MARK: - Model Section
+    
     private var modelSection: some View {
-        Section {
-            NavigationLink {
-                ModelPickerView(
-                    provider: appSettings.selectedProvider,
-                    selectedModelId: $appSettings.selectedModelId
+        Section(header: Text("Model")) {
+            let provider = localSettings.selectedProvider
+            // Use a dynamic list if we have fetched data; else fallback to static
+            let dynamicList = localSettings.modelsForProvider[provider]
+                ?? provider.availableModels
+            
+            // Navigates to a model picker list
+            NavigationLink(
+                destination: ModelPickerView(
+                    provider: provider,
+                    selectedModelId: $localSettings.selectedModelId,
+                    dynamicModels: dynamicList
                 )
-            } label: {
+            ) {
                 HStack {
-                    Text("Model")
+                    Text("Select Model")
                     Spacer()
-                    Text(appSettings.selectedModel.name)
-                        .foregroundStyle(Color.secondary)
+                    // The selected model name might not refresh automatically,
+                    // so we rely on .onChange(of: selectedModelId) -> reloadID
+                    Text(localSettings.selectedModel.name)
+                        .foregroundColor(.secondary)
                 }
             }
-        } header: {
-            Text("Model")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
+            
+            // A manual refresh button to forcibly fetch new models
+            Button("Refresh Models") {
+                Task {
+                    await fetchModels(for: provider, force: true)
+                }
+            }
+            .buttonStyle(.borderless)
         }
     }
-
-    // MARK: - Section: API Key
+    
+    // MARK: - API Key Section
+    
     private var apiKeySection: some View {
-        Section {
-            switch appSettings.selectedProvider {
+        Section(
+            header: Text("API Key"),
+            footer: Text(apiKeyFooter(localSettings.selectedProvider))
+        ) {
+            switch localSettings.selectedProvider {
             case .openAI:
-                SecureField("OpenAI API Key", text: $appSettings.openAIKey)
+                SecureField("OpenAI API Key", text: $localSettings.openAIKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-
             case .anthropic:
-                SecureField("Anthropic API Key", text: $appSettings.anthropicKey)
+                SecureField("Anthropic API Key", text: $localSettings.anthropicKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-
             case .githubModel:
-                SecureField("GitHub Token", text: $appSettings.githubToken)
+                SecureField("GitHub Token", text: $localSettings.githubToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-            }
-        } header: {
-            Text("API Key")
-        } footer: {
-            switch appSettings.selectedProvider {
-            case .openAI:
-                Text("Enter your OpenAI API key from platform.openai.com")
-            case .anthropic:
-                Text("Enter your Anthropic API key from console.anthropic.com")
-            case .githubModel:
-                Text("Enter your GitHub token for Azure-based model access.")
             }
         }
     }
-
-    // MARK: - Section: System Message
+    
+    // MARK: - System Message Section
+    
     private var systemMessageSection: some View {
-        Section {
-            TextEditor(text: $appSettings.systemMessage)
-                .frame(minHeight: 100)
+        Section(
+            header: Text("System Message"),
+            footer: Text("Provide instructions that define how the AI assistant should behave.")
+        ) {
+            TextEditor(text: $localSettings.systemMessage)
+                .frame(minHeight: 120)
                 .padding(.vertical, 4)
-        } header: {
-            Text("System Message")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        } footer: {
-            Text("Provide instructions that define how the AI assistant should behave.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
-
-    // MARK: - Section: Voice Settings
+    
+    // MARK: - Voice Section
+    
     private var voiceSection: some View {
-        Section {
-            Picker("Voice Provider", selection: $appSettings.selectedVoiceProvider) {
+        Section(header: Text("Voice Settings")) {
+            Picker("Voice Provider", selection: $localSettings.selectedVoiceProvider) {
                 ForEach(VoiceProvider.allCases) { provider in
                     Text(provider.rawValue).tag(provider)
                 }
             }
             .pickerStyle(.segmented)
-
-            if appSettings.selectedVoiceProvider == .system {
-                Picker("System Voice", selection: $appSettings.selectedSystemVoiceId) {
+            
+            if localSettings.selectedVoiceProvider == .system {
+                // A system TTS voice
+                Picker("System Voice", selection: $localSettings.selectedSystemVoiceId) {
                     ForEach(systemVoices, id: \.identifier) { voice in
                         Text(VoiceHelper.voiceDisplayName(for: voice))
                             .tag(voice.identifier)
                     }
                 }
             } else {
-                Picker("OpenAI Voice", selection: $appSettings.selectedOpenAIVoice) {
-                    ForEach(openAIVoices, id: \.0) { voice in
-                        Text(voice.1).tag(voice.0)
+                // An OpenAI TTS voice
+                Picker("OpenAI Voice", selection: $localSettings.selectedOpenAIVoice) {
+                    ForEach(openAIVoiceAliases, id: \.0) { (value, label) in
+                        Text(label).tag(value)
                     }
                 }
             }
-
-            Toggle("Autoplay AI Responses", isOn: $appSettings.autoplayVoice)
-        } header: {
-            Text("Voice Settings")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        } footer: {
-            Text(appSettings.selectedVoiceProvider == .system
-                 ? "Uses the device's built-in text-to-speech voices."
-                 : "Uses OpenAI's neural voices for a higher-quality reading.")
-            .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
+            
+            Toggle("Autoplay AI Responses", isOn: $localSettings.autoplayVoice)
         }
     }
-
-    // MARK: - Section: Appearance
-    private var appearanceSection: some View {
-        Section {
-            // Replace old "Dark Mode" toggle with a segmented picker
-            Picker("App Theme", selection: $appSettings.themeMode) {
+    
+    // MARK: - Theme Section
+    
+    private var themeSection: some View {
+        Section(header: Text("Appearance")) {
+            Picker("App Theme", selection: $localSettings.themeMode) {
                 Text("System").tag(ThemeMode.system)
                 Text("Light").tag(ThemeMode.light)
                 Text("Dark").tag(ThemeMode.dark)
             }
             .pickerStyle(.segmented)
-
-        } header: {
-            Text("Appearance")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
-
-    // MARK: - Section: About
-    private var aboutSection: some View {
-        Section {
-            NavigationLink(destination: AboutView()) {
-                Text("About")
-            }
-        } header: {
-            Text("About")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        } footer: {
-            Text("Learn more about Ophelia, including version and credits.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        }
-    }
-
-    // MARK: - Section: Export Discussion
+    
+    // MARK: - Export Section
+    
     private var exportSection: some View {
-        Section {
+        Section(
+            header: Text("Export"),
+            footer: Text("Export your chat history as a JSON file.")
+        ) {
             Button("Export Discussion to JSON") {
                 if let fileURL = chatViewModel.exportConversationAsJSONFile() {
                     shareSheetItems = [fileURL]
@@ -284,63 +267,86 @@ struct SettingsView: View {
                     print("Failed to export conversation as JSON.")
                 }
             }
-        } header: {
-            Text("Export")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
-        } footer: {
-            Text("Export your chat history as a JSON file.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
         }
     }
-
-    // MARK: - Section: Clear Conversation History
+    
+    // MARK: - Clear History
+    
     private var clearHistorySection: some View {
         Section {
             Button(role: .destructive) {
-                showClearHistoryAlert = true
+                clearMessages?()
             } label: {
                 Text("Clear Conversation History")
-                    .foregroundColor(.red)
-            }
-            .alert("Clear Conversation History?", isPresented: $showClearHistoryAlert) {
-                Button("Delete", role: .destructive) {
-                    clearMessages?()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This action will permanently delete all saved chat messages.")
             }
         } footer: {
-            Text("Deleting the conversation history is irreversible. Make sure you want to remove all past messages.")
-                .foregroundStyle(Color.Theme.textSecondary(isDarkMode: isDarkMode))
+            Text("This action will permanently delete all saved chat messages.")
         }
     }
-
-    // MARK: - Persistence Helpers
-    private func loadSettings() {
-        guard let data = appSettingsData else { return }
-        if let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
-            appSettings = decoded
+    
+    // MARK: - Fetch Logic
+    
+    private func fetchModels(for provider: ChatProvider, force: Bool = false) async {
+        do {
+            let fetched = try await ModelListService().fetchModels(
+                for: provider,
+                apiKey: localSettings.currentAPIKey
+            )
+            localSettings.modelsForProvider[provider] = fetched
+            
+            // If the current ID isn't in the new list, pick the first
+            if !fetched.contains(where: { $0.id == localSettings.selectedModelId }),
+               let first = fetched.first {
+                localSettings.selectedModelId = first.id
+            }
+            
+            // Force immediate UI refresh so "Select Model" label updates
+            reloadID = UUID()
+        } catch {
+            print("Failed to fetch models for \(provider): \(error)")
+            let fallback = provider.availableModels
+            if !fallback.contains(where: { $0.id == localSettings.selectedModelId }),
+               let first = fallback.first {
+                localSettings.selectedModelId = first.id
+            }
+            reloadID = UUID()
         }
     }
-
-    private func saveSettings() {
-        if let encoded = try? JSONEncoder().encode(appSettings) {
-            appSettingsData = encoded
+    
+    // MARK: - Utility
+    
+    private func providerFooter(_ provider: ChatProvider) -> String {
+        switch provider {
+        case .openAI:
+            return "Uses OpenAI's GPT models"
+        case .anthropic:
+            return "Uses Anthropic's Claude models"
+        case .githubModel:
+            return "Uses GitHub/Azure-based model endpoints."
         }
     }
-}
-
-// MARK: - Share Sheet Wrapper
-struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
-    let activityItems: [Any]
-    let applicationActivities: [UIActivity]?
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: applicationActivities
-        )
+    
+    private func apiKeyFooter(_ provider: ChatProvider) -> String {
+        switch provider {
+        case .openAI:
+            return "Enter your OpenAI API key from platform.openai.com"
+        case .anthropic:
+            return "Enter your Anthropic API key from console.anthropic.com"
+        case .githubModel:
+            return "Enter your GitHub token for Azure-based model access."
+        }
     }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    
+    /// A small set of OpenAI TTS voices with friendlier display names
+    private var openAIVoiceAliases: [(String, String)] {
+        [
+            ("alloy", "Alloy"), ("echo", "Echo"), ("fable", "Fable"),
+            ("onyx", "Onyx"),   ("nova", "Nova"), ("shimmer", "Shimmer")
+        ]
+    }
+    
+    /// For older iOS dismissal (if needed). If using iOS 15+ .dismiss, you can remove this method.
+    private func dismissManually() {
+        presentationMode.wrappedValue.dismiss()
+    }
 }

@@ -10,44 +10,49 @@ import Combine
 
 @available(iOS 18.0, *)
 struct ChatView: View {
+    /// Main ViewModel managing chat flow, messages, app settings, etc.
     @StateObject private var viewModel = ChatViewModel()
 
-    // Shows Settings sheet
+    /// Controls whether to show the Settings sheet
     @State private var showingSettings = false
-    
-    // Shows Memories sheet
+
+    /// Controls whether to show the Memories sheet
     @State private var showingMemories = false
 
-    // Watches app’s lifecycle states (active/inactive)
+    /// Watches app’s lifecycle states (active, inactive, background)
     @Environment(\.scenePhase) private var scenePhase
 
-    // Tracks dark mode from UserDefaults
+    /// Tracks dark mode preference from UserDefaults (in case you rely on it for the background)
     @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // A background gradient
+                // Background gradient that adjusts to dark mode
                 Color.Theme.primaryGradient(isDarkMode: isDarkMode)
                     .ignoresSafeArea(edges: .top)
 
-                // Main chat layout (messages + input bar) in ChatMainView
+                // The main chat interface: messages + input bar
                 ChatMainView(
                     viewModel: viewModel,
+                    // This toggles Settings
                     showingSettings: $showingSettings,
+                    // No longer passing a .constant(...) for tempSettings
+                    // The underlying ChatSettingsSheet can directly observe viewModel.appSettings
                     tempSettings: .constant(viewModel.appSettings)
                 )
             }
-            // Runs final setup each time the view appears
+            // Final async setup each time the view appears (e.g., reload settings & messages)
             .onAppear {
                 Task {
                     await viewModel.finalizeSetup()
                 }
             }
-            // Presents Settings, re-initializes the chat once user closes it
+            // Presents the Settings sheet.
+            // Instead of tempSettings: .constant(...), just let ChatSettingsSheet observe the ChatViewModel.
             .sheet(isPresented: $showingSettings) {
                 ChatSettingsSheet(
-                    tempSettings: .constant(viewModel.appSettings),
+                    // Removed tempSettings; the sheet can reference viewModel.appSettings directly
                     showingSettings: $showingSettings,
                     chatViewModel: viewModel,
                     clearMessages: {
@@ -55,7 +60,7 @@ struct ChatView: View {
                     }
                 )
             }
-            // Presents a sheet showing user memories
+            // Presents user memories in a separate sheet
             .sheet(isPresented: $showingMemories) {
                 NavigationStack {
                     MemoriesView(memoryStore: viewModel.memoryStore)
@@ -69,11 +74,11 @@ struct ChatView: View {
                         }
                 }
             }
-            // Basic nav bar
+            // Basic nav bar config
             .navigationTitle("Ophelia")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // Left side: Memory icon
+                // Left side: memory list
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showingMemories = true
@@ -81,8 +86,7 @@ struct ChatView: View {
                         Image(systemName: "list.bullet.rectangle.portrait")
                     }
                 }
-
-                // Right side: Settings (gear) icon
+                // Right side: gear for Settings
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingSettings = true
@@ -92,10 +96,10 @@ struct ChatView: View {
                 }
             }
             .tint(.blue)
-            // If the app goes inactive, optionally do cleanup
+            // ScenePhase changes: you can do cleanup when leaving active state
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active {
-                    // e.g. fieldIsFocused = false
+                    // e.g., hide keyboard or other cleanup
                 }
             }
         }
