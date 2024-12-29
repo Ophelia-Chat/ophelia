@@ -5,6 +5,7 @@
 //  Description:
 //  A SwiftUI form for adjusting chat settings (provider, model, API key, etc.),
 //  with dynamic fetching **only** for OpenAI. Anthropic/GitHub use fallback models.
+//  Now includes an About link and a confirmation before clearing history.
 //
 
 import SwiftUI
@@ -36,7 +37,10 @@ struct SettingsView: View {
     
     /// Toggles the share sheet for exporting chat history.
     @State private var isShowingShareSheet = false
-    
+
+    /// Toggles the confirmation alert before clearing history.
+    @State private var isShowingClearConfirmation = false
+
     /// Optional callback to clear messages (e.g., “Clear Conversation History”).
     var clearMessages: (() -> Void)? = nil
     
@@ -53,6 +57,8 @@ struct SettingsView: View {
             voiceSection
             themeSection
             exportSection
+            exportMemoriesSection
+            aboutSection
             clearHistorySection
         }
         .navigationTitle("Settings")
@@ -62,6 +68,15 @@ struct SettingsView: View {
                 activityItems: shareSheetItems,
                 applicationActivities: nil
             )
+        }
+        .alert(
+            "Are you sure you want to clear all chat history?",
+            isPresented: $isShowingClearConfirmation
+        ) {
+            Button("Clear", role: .destructive) {
+                clearMessages?()
+            }
+            Button("Cancel", role: .cancel) {}
         }
         .onAppear {
             // Load system voices if needed
@@ -84,7 +99,6 @@ extension SettingsView {
                 }
             }
             .pickerStyle(.segmented)
-            // Updated onChange in iOS 17
             .onChange(of: chatViewModel.appSettings.selectedProvider) { oldProvider, newProvider in
                 Task {
                     // 1) Fetch or apply fallback models
@@ -101,7 +115,7 @@ extension SettingsView {
                         chatViewModel.appSettings.selectedModelId = newProvider.defaultModel.id
                     }
 
-                    // 3) IMPORTANT: Re-init chat service so we actually switch providers now
+                    // 3) Re-init chat service so the switch happens now
                     chatViewModel.initializeChatService(with: chatViewModel.appSettings)
                     
                     // 4) Persist
@@ -159,14 +173,13 @@ extension SettingsView {
                 SecureField("OpenAI API Key", text: $chatViewModel.appSettings.openAIKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    // iOS 17 two-parameter onChange
                     .onChange(of: chatViewModel.appSettings.openAIKey) { oldValue, newValue in
                         Task {
                             await chatViewModel.saveSettings()
                             print("[SettingsView] OpenAI key changed -> saved.")
                         }
                     }
-                    
+
             case .anthropic:
                 SecureField("Anthropic API Key", text: $chatViewModel.appSettings.anthropicKey)
                     .textInputAutocapitalization(.never)
@@ -262,11 +275,36 @@ extension SettingsView {
         }
     }
 
+    private var exportMemoriesSection: some View {
+        Section(header: Text("Export Memories"),
+                footer: Text("Exports your Memories.json content as a separate JSON file.")) {
+            Button("Export Memories to JSON") {
+                if let fileURL = chatViewModel.memoryStore.exportMemoriesAsJSONFile() {
+                    shareSheetItems = [fileURL]
+                    isShowingShareSheet = true
+                } else {
+                    print("Failed to export memories as JSON.")
+                }
+            }
+        }
+    }
+
+    // MARK: About
+    private var aboutSection: some View {
+        Section(header: Text("About")) {
+            NavigationLink("About Ophelia") {
+                // Ensure you have an AboutView (or rename to your custom view):
+                AboutView()
+            }
+        }
+    }
+
     // MARK: Clear History
     private var clearHistorySection: some View {
         Section {
+            // Tapping this triggers an alert confirmation
             Button(role: .destructive) {
-                clearMessages?()
+                isShowingClearConfirmation = true
             } label: {
                 Text("Clear Conversation History")
             }

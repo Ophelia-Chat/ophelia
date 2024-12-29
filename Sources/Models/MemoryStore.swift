@@ -262,3 +262,22 @@ class MemoryStore: ObservableObject {
         return Array(filtered.prefix(topK))
     }
 }
+
+extension MemoryStore {
+    /// Exports the memories array as a temporary JSON file and returns the file URL, or `nil` on failure.
+    func exportMemoriesAsJSONFile() -> URL? {
+        do {
+            let data = try JSONEncoder().encode(memories)
+            let tempDir = FileManager.default.temporaryDirectory
+            let filename = "memories-\(UUID().uuidString).json"
+            let fileURL = tempDir.appendingPathComponent(filename)
+
+            try data.write(to: fileURL, options: .atomic)
+            print("[MemoryStore] Exported memories to file: \(fileURL)")
+            return fileURL
+        } catch {
+            print("[MemoryStore] Error exporting memories: \(error)")
+            return nil
+        }
+    }
+}
