@@ -7,20 +7,10 @@
 //  It coordinates sending user messages, receiving AI responses, and orchestrating memory storage,
 //  voice synthesis, and persistent user settings.
 //
-//  Dependencies (external to this file):
-//  - MutableMessage: A class representing a single chat message (with text, timestamps, etc.).
-//  - ChatServiceProtocol & concrete implementations (e.g. OpenAIChatService, AnthropicService, GitHubModelChatService)
-//  - VoiceServiceProtocol & concrete implementations (e.g. OpenAITTSService, SystemVoiceService)
-//  - AppSettings: Stores user preferences & credentials
-//  - MemoryStore: Handles user "memories" across sessions
-//  - ChatServiceError: An enum describing possible error states from the chat service
-//  - MessageDTO: A Codable struct that helps persist messages to disk/user defaults
-//  - iOS-specific frameworks (UIKit, SwiftUI, Combine, AVFoundation) used for background tasks,
-//    notifications, speech, etc.
-//
 //  Created by rob on 2024-11-27.
 //  Updated & refined for best practices and inline documentation.
 //
+
 import SwiftUI
 import AVFoundation
 import Combine
@@ -83,7 +73,15 @@ class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
 
     /// The app’s user-configurable settings (API keys, provider choice, etc.).
-    @Published private(set) var appSettings: AppSettings
+    ///
+    /// By using a property observer (didSet), we can watch for *any* changes and immediately
+    /// re-initialize our chat or voice services. This ensures changes take effect without
+    /// restarting the app.
+    @Published var appSettings: AppSettings {
+        didSet {
+            applySettingsChanges(from: oldValue, to: appSettings)
+        }
+    }
 
     /// If an error (e.g. invalid key) occurs, store the message here to surface in the UI.
     @Published var errorMessage: String?
@@ -163,9 +161,7 @@ class ChatViewModel: ObservableObject {
         self.appSettings = AppSettings()
 
         // Initialize the memory store (optionally with an embedding service).
-        self.memoryStore = MemoryStore(
-            // embeddingService: ...
-        )
+        self.memoryStore = MemoryStore()
 
         setupNotifications()
     }
@@ -184,6 +180,39 @@ class ChatViewModel: ObservableObject {
         initializeVoiceService(with: appSettings)
 
         print("[ChatViewModel] Setup complete: Provider = \(appSettings.selectedProvider), Model = \(appSettings.selectedModelId)")
+    }
+
+    // MARK: - Applying App Settings Changes
+
+    /**
+     Observes changes to `appSettings` and re-initializes services as needed.
+     This ensures provider changes, model changes, or new API keys take effect immediately without
+     restarting the app.
+     */
+    private func applySettingsChanges(from oldSettings: AppSettings, to newSettings: AppSettings) {
+        // Cancel any streaming tasks or TTS if changes occur mid-response
+        stopCurrentOperations()
+
+        // If the provider, API key, **or the selected model** changed, re-init the chat service.
+        if  oldSettings.selectedProvider  != newSettings.selectedProvider  ||
+            oldSettings.currentAPIKey    != newSettings.currentAPIKey    ||
+            oldSettings.selectedModelId  != newSettings.selectedModelId
+        {
+            initializeChatService(with: newSettings)
+        }
+
+        // If TTS settings changed, re-init or update the voice service.
+        if  oldSettings.selectedVoiceProvider   != newSettings.selectedVoiceProvider  ||
+            oldSettings.selectedSystemVoiceId   != newSettings.selectedSystemVoiceId  ||
+            oldSettings.selectedOpenAIVoice     != newSettings.selectedOpenAIVoice    ||
+            oldSettings.openAIKey               != newSettings.openAIKey
+        {
+            updateVoiceService(with: newSettings, oldVoiceProvider: oldSettings.selectedVoiceProvider)
+        }
+
+        // Persist the new settings asynchronously
+        Task { await saveSettings() }
+        print("[ChatViewModel] App settings updated and saved.")
     }
 
     // MARK: - Masking API Keys
@@ -236,7 +265,7 @@ class ChatViewModel: ObservableObject {
             messages.append(ack)
         }
 
-        // 4) Regardless of memory commands, we request an AI response next.
+        // 4) Request an AI response next.
         isLoading = true
         stopCurrentOperations()
 
@@ -312,55 +341,11 @@ class ChatViewModel: ObservableObject {
         print("[ChatViewModel] Messages cleared.")
     }
 
-    // MARK: - Settings Management
-
-    /**
-     Updates the ViewModel with a new `AppSettings` object (possibly from the UI).
-     - Stops current tasks.
-     - Re-initializes services if the provider or TTS settings changed.
-     - Persists updated settings to disk.
-     */
-    func updateAppSettings(_ newSettings: AppSettings) {
-        stopCurrentOperations()
-
-        // Capture old states to see what changed.
-        let oldProvider = appSettings.selectedProvider
-        let oldVoiceProvider = appSettings.selectedVoiceProvider
-        let oldSystemVoiceId = appSettings.selectedSystemVoiceId
-        let oldOpenAIVoice = appSettings.selectedOpenAIVoice
-        let oldOpenAIKey = appSettings.openAIKey
-
-        appSettings = newSettings
-
-        // Warn if the new provider has no key set.
-        if appSettings.currentAPIKey.isEmpty {
-            print("[ChatViewModel] Warning: Provider \(appSettings.selectedProvider) selected without a valid key.")
-        }
-
-        // If provider or API key changed, re-init the chat service.
-        if oldProvider != newSettings.selectedProvider ||
-           appSettings.currentAPIKey != newSettings.currentAPIKey {
-            initializeChatService(with: newSettings)
-        }
-
-        // If TTS settings changed, re-init or update the voice service.
-        if oldVoiceProvider != newSettings.selectedVoiceProvider ||
-           oldSystemVoiceId != newSettings.selectedSystemVoiceId ||
-           oldOpenAIVoice != newSettings.selectedOpenAIVoice ||
-           oldOpenAIKey != newSettings.openAIKey {
-            updateVoiceService(with: newSettings, oldVoiceProvider: oldVoiceProvider)
-        }
-
-        // Persist new settings.
-        Task { await saveSettings() }
-        print("[ChatViewModel] App settings updated and saved.")
-    }
-
     // MARK: - App Lifecycle Notifications
 
     /**
      Subscribes to `UIApplication.willResignActiveNotification` so we can
-     stop chat or speech tasks if the app is backgrounded.
+     stop chat or speech tasks if the app goes into the background.
      */
     private func setupNotifications() {
         NotificationCenter.default
@@ -375,8 +360,9 @@ class ChatViewModel: ObservableObject {
 
     /**
      Sets up or re-sets the chat service based on the current provider and API key.
+     Ensures changes to provider, model, or keys take effect immediately.
      */
-    private func initializeChatService(with settings: AppSettings) {
+    internal func initializeChatService(with settings: AppSettings) {
         guard !settings.currentAPIKey.isEmpty else {
             chatService = nil
             print("[ChatViewModel] No valid API key for provider \(settings.selectedProvider).")
@@ -420,8 +406,10 @@ class ChatViewModel: ObservableObject {
                 print("[ChatViewModel] No OpenAI API key provided for TTS.")
                 return
             }
-            let openAIService = OpenAITTSService(apiKey: settings.openAIKey,
-                                                 voiceId: settings.selectedOpenAIVoice)
+            let openAIService = OpenAITTSService(
+                apiKey: settings.openAIKey,
+                voiceId: settings.selectedOpenAIVoice
+            )
             self.openAITTSService = openAIService
             self.voiceService = openAIService
             print("[ChatViewModel] Initialized OpenAI voice with ID: \(settings.selectedOpenAIVoice)")
@@ -430,7 +418,7 @@ class ChatViewModel: ObservableObject {
 
     /**
      Called when TTS-specific settings change (e.g., switching voices).
-     If the TTS provider remains the same, we can sometimes just update the service.
+     If the TTS provider remains the same, we can often just update the service.
      Otherwise, we re-initialize from scratch.
      */
     private func updateVoiceService(with settings: AppSettings,
@@ -447,7 +435,6 @@ class ChatViewModel: ObservableObject {
                 print("[ChatViewModel] Updated system voice to: \(settings.selectedSystemVoiceId)")
 
             case .openAI:
-                // If we already have an OpenAITTSService, just update its voice.
                 if let service = openAITTSService {
                     service.updateVoice(settings.selectedOpenAIVoice)
                     print("[ChatViewModel] Updated OpenAI voice to: \(settings.selectedOpenAIVoice)")
@@ -501,7 +488,7 @@ class ChatViewModel: ObservableObject {
     /**
      Persists the current AppSettings to UserDefaults by encoding to JSON.
      */
-    private func saveSettings() async {
+    func saveSettings() async {
         guard let encoded = try? encoder.encode(appSettings) else { return }
         userDefaults.set(encoded, forKey: "appSettingsData")
         print("[ChatViewModel] App settings saved.")
@@ -533,18 +520,18 @@ class ChatViewModel: ObservableObject {
             // 2) Build the list of messages to send, possibly including relevant memories.
             let payload = await prepareMessagesPayload()
 
-            // 3) If using OpenAI or GitHub, prepend a system message to the conversation if set.
+            // 3) Handle system message if needed (OpenAI/GitHub typically embed as role=system).
+            //    Anthropic uses a separate `system` param.
             if (appSettings.selectedProvider == .openAI || appSettings.selectedProvider == .githubModel),
                !appSettings.systemMessage.isEmpty {
                 var updated = payload
                 updated.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
 
-                // For Anthropic, we pass the system message separately instead of as a list item.
+                // For Anthropic, pass system text separately.
                 let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
                                     ? appSettings.systemMessage
                                     : nil
 
-                // Stream the response.
                 let stream = try await service.streamCompletion(
                     messages: updated,
                     model: appSettings.selectedModelId,
@@ -554,7 +541,7 @@ class ChatViewModel: ObservableObject {
                 await finalizeResponseProcessing(completeResponse: completeResponse)
 
             } else {
-                // For Anthropic or other providers, handle system messages differently.
+                // For Anthropic or other providers.
                 let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
                                     ? appSettings.systemMessage
                                     : nil
@@ -568,7 +555,6 @@ class ChatViewModel: ObservableObject {
                 await finalizeResponseProcessing(completeResponse: completeResponse)
             }
         } catch {
-            // If we fail to fetch a response, handle the error and remove the empty AI placeholder.
             print("[ChatViewModel] Error fetching response: \(error)")
             handleError(error)
             removeLastAIMessage()
@@ -634,11 +620,10 @@ class ChatViewModel: ObservableObject {
             truncatedMessages.removeFirst(olderCount)
 
             // Insert a summary placeholder so the user knows older content was truncated.
-            truncatedMessages.insert(MutableMessage(
-                id: UUID(),
-                text: truncatedSummaryText,
-                isUser: false
-            ), at: 0)
+            truncatedMessages.insert(
+                MutableMessage(id: UUID(), text: truncatedSummaryText, isUser: false),
+                at: 0
+            )
         }
 
         // 3) Convert truncated messages into the format the AI expects (role, content).

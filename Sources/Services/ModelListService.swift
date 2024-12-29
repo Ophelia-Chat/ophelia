@@ -66,21 +66,23 @@ actor ModelListService {
     ///   - apiKey:   The user’s API key or token for that provider.
     /// - Returns:    An array of `ChatModel` objects (each with id, name, and provider).
     func fetchModels(for provider: ChatProvider, apiKey: String) async throws -> [ChatModel] {
-        // 1) Build and configure the URLRequest
-        let request = try buildRequest(for: provider, apiKey: apiKey)
-        
-        // 2) Perform the GET request
-        let (data, response) = try await urlSession.data(for: request)
-        
-        // 3) Validate HTTP response status
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            let errorMsg = String(data: data, encoding: .utf8) ?? "<no response body>"
-            throw URLError(.badServerResponse, userInfo: ["errorMessage": errorMsg])
+        switch provider {
+        case .openAI:
+            // Keep dynamic fetching for OpenAI as before:
+            let request = try buildRequest(for: .openAI, apiKey: apiKey)
+            let (data, response) = try await urlSession.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode) else {
+                let errorMsg = String(data: data, encoding: .utf8) ?? "<no response body>"
+                throw URLError(.badServerResponse, userInfo: ["errorMessage": errorMsg])
+            }
+            return try parseResponse(data: data, provider: .openAI)
+            
+        case .anthropic, .githubModel:
+            // Instead of hitting the network, just return the provider’s built-in model list.
+            // You have these pre-defined in ChatProvider.availableModels, so let’s use that.
+            return provider.availableModels
         }
-        
-        // 4) Decode data into an array of ChatModel
-        return try parseResponse(data: data, provider: provider)
     }
     
     // MARK: - Private Helpers

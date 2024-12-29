@@ -4,78 +4,49 @@
 //
 //  Description:
 //  A SwiftUI form for adjusting chat settings (provider, model, API key, etc.),
-//  incorporating a local copy (`@State var localSettings`) that is synced to the
-//  `ChatViewModel` in real-time. Also uses an ID-based force-refresh approach
-//  (`reloadID`) to ensure immediate UI updates on provider/model changes.
-//
-//  Note:
-//  - We remove any extra NavigationView here, since ChatSettingsSheet already
-//    provides a NavigationStack for this content.
-//  - The “Done” button calls `dismissManually()`, using `@Environment(\.presentationMode)`
-//    for older iOS versions if you want a secondary approach to dismiss.
-//  - The “Refresh Models” button and automatic fetch in `.onChange(of: selectedProvider)`
-//    ensures new model lists are fetched immediately.
-//
-//  Usage:
-//   - This view is typically presented by ChatSettingsSheet, which wraps it
-//     in a NavigationStack and adds a “Done” button to dismiss the sheet.
-//
-//  Created by rob on 2024-11-27.
+//  with dynamic fetching **only** for OpenAI. Anthropic/GitHub use fallback models.
 //
 
 import SwiftUI
 import AVFoundation
 
-/// A simple UIActivityViewController (share sheet) wrapper for SwiftUI
+// MARK: - ActivityViewControllerWrapper
 struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
     let activityItems: [Any]
     let applicationActivities: [UIActivity]?
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+        UIActivityViewController(activityItems: activityItems,
+                                 applicationActivities: applicationActivities)
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-/// The main settings form. Uses a local copy of AppSettings (`localSettings`) that
-/// syncs changes back to `chatViewModel` on each modification. Also offers a refresh
-/// mechanism (`reloadID`) so the UI re-initializes subviews immediately.
+// MARK: - SettingsView
 struct SettingsView: View {
     // MARK: - Observed Properties
-    
-    /// The main ChatViewModel controlling app settings and logic.
     @ObservedObject var chatViewModel: ChatViewModel
-    
-    // MARK: - Local State
-    
-    /// A local copy of the settings we display and edit in the form.
-    @State private var localSettings = AppSettings()
-    
-    /// A unique ID to force SwiftUI to rebuild the form (e.g. after provider/model changes).
-    @State private var reloadID = UUID()
-    
+
     /// A cache of available AVSpeechSynthesisVoices, if using system TTS.
     @State private var systemVoices: [AVSpeechSynthesisVoice] = []
-    
+
     /// Data for sharing an exported JSON file.
     @State private var shareSheetItems: [Any] = []
     
     /// Toggles the share sheet for exporting chat history.
     @State private var isShowingShareSheet = false
     
-    /// Optional callback to clear messages (e.g. “Clear Conversation History”).
+    /// Optional callback to clear messages (e.g., “Clear Conversation History”).
     var clearMessages: (() -> Void)? = nil
     
     /// For iOS <15 style dismissal from a Navigation-based context.
     @Environment(\.presentationMode) private var presentationMode
-    
+
     // MARK: - Body
-    
     var body: some View {
-        // We rely on the parent to provide a NavigationStack or NavigationView context.
         Form {
-            providerSection
+            providerSection()
             modelSection
             apiKeySection
             systemMessageSection
@@ -84,166 +55,188 @@ struct SettingsView: View {
             exportSection
             clearHistorySection
         }
-        .id(reloadID)  // Forces a rebuild when we set `reloadID = UUID()`
         .navigationTitle("Settings")
-        // For exporting JSON, displayed as a share sheet
+        // Displays share sheet for JSON exports
         .sheet(isPresented: $isShowingShareSheet) {
-            ActivityViewControllerWrapper(activityItems: shareSheetItems, applicationActivities: nil)
+            ActivityViewControllerWrapper(
+                activityItems: shareSheetItems,
+                applicationActivities: nil
+            )
         }
-        // Initialize localSettings from ChatViewModel on appear
         .onAppear {
-            localSettings = chatViewModel.appSettings
+            // Load system voices if needed
             systemVoices = VoiceHelper.getAvailableVoices()
         }
-        // Each time localSettings changes, push to chatViewModel
-        .onChange(of: localSettings) { _, newValue in
-            chatViewModel.updateAppSettings(newValue)
-        }
-        // If the user changes the model ID, we might refresh the form so the label updates
-        .onChange(of: localSettings.selectedModelId) { _, _ in
-            reloadID = UUID()
-        }
     }
-    
-    // MARK: - Provider Section
-    
-    private var providerSection: some View {
+}
+
+// MARK: - Subviews
+extension SettingsView {
+    // MARK: Provider
+    func providerSection() -> some View {
         Section(
             header: Text("Chat Provider"),
-            footer: Text(providerFooter(localSettings.selectedProvider))
+            footer: Text(providerFooter(chatViewModel.appSettings.selectedProvider))
         ) {
-            Picker("Provider", selection: $localSettings.selectedProvider) {
+            Picker("Provider", selection: $chatViewModel.appSettings.selectedProvider) {
                 ForEach(ChatProvider.allCases) { provider in
                     Text(provider.rawValue).tag(provider)
                 }
             }
             .pickerStyle(.segmented)
-            .onChange(of: localSettings.selectedProvider) { _, newProvider in
+            // Updated onChange in iOS 17
+            .onChange(of: chatViewModel.appSettings.selectedProvider) { oldProvider, newProvider in
                 Task {
-                    // Fetch the dynamic model list for the newly selected provider
-                    await fetchModels(for: newProvider)
+                    // 1) Fetch or apply fallback models
+                    if newProvider == .openAI {
+                        await fetchModels(for: newProvider)
+                    } else {
+                        applyFallbackModels(for: newProvider)
+                    }
+                    
+                    // 2) If the user’s chosen model no longer exists for the new provider, reset it
+                    let providerList = chatViewModel.appSettings.modelsForProvider[newProvider]
+                                     ?? newProvider.availableModels
+                    if !providerList.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }) {
+                        chatViewModel.appSettings.selectedModelId = newProvider.defaultModel.id
+                    }
+
+                    // 3) IMPORTANT: Re-init chat service so we actually switch providers now
+                    chatViewModel.initializeChatService(with: chatViewModel.appSettings)
+                    
+                    // 4) Persist
+                    await chatViewModel.saveSettings()
+                    print("[SettingsView] Switched provider: \(newProvider)")
                 }
-                // If the old model ID isn't valid for the new provider, default to the provider's first model
-                if !newProvider.availableModels.contains(where: { $0.id == localSettings.selectedModelId }) {
-                    localSettings.selectedModelId = newProvider.defaultModel.id
-                }
-                // Force immediate UI refresh
-                reloadID = UUID()
             }
         }
     }
-    
-    // MARK: - Model Section
-    
+
+    // MARK: Model
     private var modelSection: some View {
         Section(header: Text("Model")) {
-            let provider = localSettings.selectedProvider
-            // Use a dynamic list if we have fetched data; else fallback to static
-            let dynamicList = localSettings.modelsForProvider[provider]
-                ?? provider.availableModels
-            
-            // Navigates to a model picker list
+            let provider = chatViewModel.appSettings.selectedProvider
+            // Use either dynamic list or built-in provider models
+            let dynamicList = chatViewModel.appSettings.modelsForProvider[provider]
+                              ?? provider.availableModels
+
             NavigationLink(
                 destination: ModelPickerView(
                     provider: provider,
-                    selectedModelId: $localSettings.selectedModelId,
+                    selectedModelId: $chatViewModel.appSettings.selectedModelId,
                     dynamicModels: dynamicList
                 )
             ) {
                 HStack {
                     Text("Select Model")
                     Spacer()
-                    // The selected model name might not refresh automatically,
-                    // so we rely on .onChange(of: selectedModelId) -> reloadID
-                    Text(localSettings.selectedModel.name)
+                    Text(chatViewModel.appSettings.selectedModel.name)
                         .foregroundColor(.secondary)
                 }
             }
-            
-            // A manual refresh button to forcibly fetch new models
+
             Button("Refresh Models") {
                 Task {
-                    await fetchModels(for: provider, force: true)
+                    if provider == .openAI {
+                        await fetchModels(for: provider, force: true)
+                    } else {
+                        applyFallbackModels(for: provider)
+                    }
                 }
             }
             .buttonStyle(.borderless)
         }
     }
-    
-    // MARK: - API Key Section
-    
+
+    // MARK: API Key
     private var apiKeySection: some View {
         Section(
             header: Text("API Key"),
-            footer: Text(apiKeyFooter(localSettings.selectedProvider))
+            footer: Text(apiKeyFooter(chatViewModel.appSettings.selectedProvider))
         ) {
-            switch localSettings.selectedProvider {
+            switch chatViewModel.appSettings.selectedProvider {
             case .openAI:
-                SecureField("OpenAI API Key", text: $localSettings.openAIKey)
+                SecureField("OpenAI API Key", text: $chatViewModel.appSettings.openAIKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    // iOS 17 two-parameter onChange
+                    .onChange(of: chatViewModel.appSettings.openAIKey) { oldValue, newValue in
+                        Task {
+                            await chatViewModel.saveSettings()
+                            print("[SettingsView] OpenAI key changed -> saved.")
+                        }
+                    }
+                    
             case .anthropic:
-                SecureField("Anthropic API Key", text: $localSettings.anthropicKey)
+                SecureField("Anthropic API Key", text: $chatViewModel.appSettings.anthropicKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .onChange(of: chatViewModel.appSettings.anthropicKey) { oldValue, newValue in
+                        Task {
+                            await chatViewModel.saveSettings()
+                            print("[SettingsView] Anthropic key changed -> saved.")
+                        }
+                    }
+
             case .githubModel:
-                SecureField("GitHub Token", text: $localSettings.githubToken)
+                SecureField("GitHub Token", text: $chatViewModel.appSettings.githubToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .onChange(of: chatViewModel.appSettings.githubToken) { oldValue, newValue in
+                        Task {
+                            await chatViewModel.saveSettings()
+                            print("[SettingsView] GitHub token changed -> saved.")
+                        }
+                    }
             }
         }
     }
-    
-    // MARK: - System Message Section
-    
+
+    // MARK: System Message
     private var systemMessageSection: some View {
         Section(
             header: Text("System Message"),
             footer: Text("Provide instructions that define how the AI assistant should behave.")
         ) {
-            TextEditor(text: $localSettings.systemMessage)
+            TextEditor(text: $chatViewModel.appSettings.systemMessage)
                 .frame(minHeight: 120)
                 .padding(.vertical, 4)
         }
     }
-    
-    // MARK: - Voice Section
-    
+
+    // MARK: Voice
     private var voiceSection: some View {
         Section(header: Text("Voice Settings")) {
-            Picker("Voice Provider", selection: $localSettings.selectedVoiceProvider) {
+            Picker("Voice Provider", selection: $chatViewModel.appSettings.selectedVoiceProvider) {
                 ForEach(VoiceProvider.allCases) { provider in
                     Text(provider.rawValue).tag(provider)
                 }
             }
             .pickerStyle(.segmented)
-            
-            if localSettings.selectedVoiceProvider == .system {
-                // A system TTS voice
-                Picker("System Voice", selection: $localSettings.selectedSystemVoiceId) {
+
+            if chatViewModel.appSettings.selectedVoiceProvider == .system {
+                Picker("System Voice", selection: $chatViewModel.appSettings.selectedSystemVoiceId) {
                     ForEach(systemVoices, id: \.identifier) { voice in
                         Text(VoiceHelper.voiceDisplayName(for: voice))
                             .tag(voice.identifier)
                     }
                 }
             } else {
-                // An OpenAI TTS voice
-                Picker("OpenAI Voice", selection: $localSettings.selectedOpenAIVoice) {
+                Picker("OpenAI Voice", selection: $chatViewModel.appSettings.selectedOpenAIVoice) {
                     ForEach(openAIVoiceAliases, id: \.0) { (value, label) in
                         Text(label).tag(value)
                     }
                 }
             }
-            
-            Toggle("Autoplay AI Responses", isOn: $localSettings.autoplayVoice)
+
+            Toggle("Autoplay AI Responses", isOn: $chatViewModel.appSettings.autoplayVoice)
         }
     }
-    
-    // MARK: - Theme Section
-    
+
+    // MARK: Theme
     private var themeSection: some View {
         Section(header: Text("Appearance")) {
-            Picker("App Theme", selection: $localSettings.themeMode) {
+            Picker("App Theme", selection: $chatViewModel.appSettings.themeMode) {
                 Text("System").tag(ThemeMode.system)
                 Text("Light").tag(ThemeMode.light)
                 Text("Dark").tag(ThemeMode.dark)
@@ -251,9 +244,8 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
         }
     }
-    
-    // MARK: - Export Section
-    
+
+    // MARK: Export
     private var exportSection: some View {
         Section(
             header: Text("Export"),
@@ -269,9 +261,8 @@ struct SettingsView: View {
             }
         }
     }
-    
-    // MARK: - Clear History
-    
+
+    // MARK: Clear History
     private var clearHistorySection: some View {
         Section {
             Button(role: .destructive) {
@@ -283,38 +274,46 @@ struct SettingsView: View {
             Text("This action will permanently delete all saved chat messages.")
         }
     }
-    
-    // MARK: - Fetch Logic
-    
+}
+
+// MARK: - Helpers
+extension SettingsView {
+    /// Attempts to fetch new models if provider == .openAI; otherwise uses fallback.
     private func fetchModels(for provider: ChatProvider, force: Bool = false) async {
+        guard provider == .openAI else {
+            applyFallbackModels(for: provider)
+            return
+        }
+        
         do {
             let fetched = try await ModelListService().fetchModels(
                 for: provider,
-                apiKey: localSettings.currentAPIKey
+                apiKey: chatViewModel.appSettings.currentAPIKey
             )
-            localSettings.modelsForProvider[provider] = fetched
+            chatViewModel.appSettings.modelsForProvider[provider] = fetched
             
-            // If the current ID isn't in the new list, pick the first
-            if !fetched.contains(where: { $0.id == localSettings.selectedModelId }),
+            // If selected model no longer valid, pick the first fetched as default
+            if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
                let first = fetched.first {
-                localSettings.selectedModelId = first.id
+                chatViewModel.appSettings.selectedModelId = first.id
             }
-            
-            // Force immediate UI refresh so "Select Model" label updates
-            reloadID = UUID()
         } catch {
             print("Failed to fetch models for \(provider): \(error)")
-            let fallback = provider.availableModels
-            if !fallback.contains(where: { $0.id == localSettings.selectedModelId }),
-               let first = fallback.first {
-                localSettings.selectedModelId = first.id
-            }
-            reloadID = UUID()
+            applyFallbackModels(for: provider)
         }
     }
-    
-    // MARK: - Utility
-    
+
+    /// Reverts to built-in models if fetch fails or provider != .openAI
+    private func applyFallbackModels(for provider: ChatProvider) {
+        let fallback = provider.availableModels
+        chatViewModel.appSettings.modelsForProvider[provider] = fallback
+        
+        if !fallback.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
+           let first = fallback.first {
+            chatViewModel.appSettings.selectedModelId = first.id
+        }
+    }
+
     private func providerFooter(_ provider: ChatProvider) -> String {
         switch provider {
         case .openAI:
@@ -325,7 +324,7 @@ struct SettingsView: View {
             return "Uses GitHub/Azure-based model endpoints."
         }
     }
-    
+
     private func apiKeyFooter(_ provider: ChatProvider) -> String {
         switch provider {
         case .openAI:
@@ -336,16 +335,20 @@ struct SettingsView: View {
             return "Enter your GitHub token for Azure-based model access."
         }
     }
-    
+
     /// A small set of OpenAI TTS voices with friendlier display names
     private var openAIVoiceAliases: [(String, String)] {
         [
-            ("alloy", "Alloy"), ("echo", "Echo"), ("fable", "Fable"),
-            ("onyx", "Onyx"),   ("nova", "Nova"), ("shimmer", "Shimmer")
+            ("alloy",   "Alloy"),
+            ("echo",    "Echo"),
+            ("fable",   "Fable"),
+            ("onyx",    "Onyx"),
+            ("nova",    "Nova"),
+            ("shimmer", "Shimmer")
         ]
     }
-    
-    /// For older iOS dismissal (if needed). If using iOS 15+ .dismiss, you can remove this method.
+
+    /// For older iOS dismissal. If using `.dismiss` on iOS 15+, you can remove this.
     private func dismissManually() {
         presentationMode.wrappedValue.dismiss()
     }
