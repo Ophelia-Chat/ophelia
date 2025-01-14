@@ -65,6 +65,7 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
             return [
                 ChatModel(id: "AI21-Jamba-1.5-Large",         name: "AI21 Jamba 1.5 Large",       provider: self),
                 ChatModel(id: "AI21-Jamba-1.5-Mini",          name: "AI21 Jamba 1.5 Mini",        provider: self),
+                ChatModel(id: "Codestral-2501",               name: "Codestral 25.01",            provider: self),
                 ChatModel(id: "Cohere-command-r",             name: "Cohere Command R",           provider: self),
                 ChatModel(id: "Cohere-command-r-08-2024",     name: "Cohere Command R 08-2024",   provider: self),
                 ChatModel(id: "Cohere-command-r-plus",        name: "Cohere Command R+",          provider: self),
@@ -86,6 +87,7 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
                 ChatModel(id: "Mistral-small",                name: "Mistral Small",              provider: self),
                 ChatModel(id: "gpt-4o",                       name: "OpenAI GPT-4o",              provider: self),
                 ChatModel(id: "gpt-4o-mini",                  name: "OpenAI GPT-4o mini",         provider: self),
+                ChatModel(id: "o1",                           name: "OpenAI o1",                  provider: self),
                 ChatModel(id: "o1-mini",                      name: "OpenAI o1-mini",             provider: self),
                 ChatModel(id: "o1-preview",                   name: "OpenAI o1-preview",          provider: self),
                 ChatModel(id: "Phi-3-medium-128k-instruct",   name: "Phi-3-medium instruct (128k)",   provider: self),
