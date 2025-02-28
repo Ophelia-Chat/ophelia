@@ -41,6 +41,13 @@ struct ChatView: View {
                     // The underlying ChatSettingsSheet can directly observe viewModel.appSettings
                     tempSettings: .constant(viewModel.appSettings)
                 )
+                .onAppear {
+                    /**
+                     If the user has selected .ollama in the past and the user has not
+                     fetched local models, we could attempt to do so again here.
+                     Or we can rely on the user to press "Refresh Models" in the UI.
+                     */
+                }
             }
             // Final async setup each time the view appears (e.g., reload settings & messages)
             .onAppear {

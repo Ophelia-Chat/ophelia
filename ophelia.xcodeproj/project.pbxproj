@@ -95,6 +95,9 @@
 		191B6BA92D1DCB33006AD239 /* ModelListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6BA72D1DCB30006AD239 /* ModelListService.swift */; };
 		191B6BAA2D1DCB33006AD239 /* ModelListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191B6BA72D1DCB30006AD239 /* ModelListService.swift */; };
 		19517EB32D0D2752008F81B3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 19517EB22D0D2752008F81B3 /* MarkdownUI */; };
+		1987BC112D72118A003DB450 /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1987BC102D72118A003DB450 /* OllamaService.swift */; };
+		1987BC122D72118A003DB450 /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1987BC102D72118A003DB450 /* OllamaService.swift */; };
+		1987BC132D72118A003DB450 /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1987BC102D72118A003DB450 /* OllamaService.swift */; };
 		19C00C182D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C192D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
 		19C00C1A2D17887100DBCAA0 /* ChatMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C00C172D17886C00DBCAA0 /* ChatMainView.swift */; };
@@ -156,6 +159,7 @@
 		1976BD3F2CF14D5F0066972B /* ophelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ophelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD512CF14D600066972B /* opheliaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1976BD5B2CF14D600066972B /* opheliaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = opheliaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1987BC102D72118A003DB450 /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
 		19C00C172D17886C00DBCAA0 /* ChatMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMainView.swift; sourceTree = "<group>"; };
 		19C00C1B2D18557F00DBCAA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		19CF5C512D164D98004C011C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -205,6 +209,7 @@
 				1914CA382D16452900E275BF /* AnthropicService.swift */,
 				1914CA392D16452900E275BF /* ChatService.swift */,
 				1914CA3A2D16452900E275BF /* GitHubModelChatService.swift */,
+				1987BC102D72118A003DB450 /* OllamaService.swift */,
 				191B6BA32D1B7590006AD239 /* EmbeddingService.swift */,
 				1914CA3B2D16452900E275BF /* OpenAIChatService.swift */,
 				191B6BA72D1DCB30006AD239 /* ModelListService.swift */,
@@ -412,6 +417,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1987BC112D72118A003DB450 /* OllamaService.swift in Sources */,
 				19CF5C5C2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA522D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA532D16452900E275BF /* ModelPickerView.swift in Sources */,
@@ -450,6 +456,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1987BC122D72118A003DB450 /* OllamaService.swift in Sources */,
 				19CF5C5B2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA812D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA822D16452900E275BF /* ModelPickerView.swift in Sources */,
@@ -488,6 +495,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1987BC132D72118A003DB450 /* OllamaService.swift in Sources */,
 				19CF5C5D2D174454004C011C /* KeyboardAdaptive.swift in Sources */,
 				1914CA6A2D16452900E275BF /* ChatService.swift in Sources */,
 				1914CA6B2D16452900E275BF /* ModelPickerView.swift in Sources */,

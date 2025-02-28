@@ -42,6 +42,7 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
     case openAI      = "OpenAI"
     case anthropic   = "Anthropic"
     case githubModel = "GitHub Model"
+    case ollama      = "Ollama"
 
     var id: String { rawValue }
 
@@ -100,12 +101,26 @@ enum ChatProvider: String, Codable, CaseIterable, Identifiable {
                 ChatModel(id: "Phi-3.5-MoE-instruct",         name: "Phi-3.5-MoE instruct (128k)",    provider: self),
                 ChatModel(id: "Phi-3.5-vision-instruct",      name: "Phi-3.5-vision instruct (128k)",  provider: self)
             ]
+        case .ollama:
+            /**
+             We return an empty list by default. We will fetch the real local
+             models from the /api/tags endpoint using the ModelListService
+             at runtime. We'll store them in `modelsForProvider[.ollama]`.
+             The user can refresh or see them in the UI.
+             */
+            return []
         }
     }
 
     /// Returns the first model in the list as a fallback default.
     var defaultModel: ChatModel {
-        availableModels[0]
+        switch self {
+        case .openAI: return availableModels[0]
+        case .anthropic: return availableModels[0]
+        case .githubModel: return availableModels[0]
+        case .ollama:
+            return ChatModel(id: "llama3.2", name: "llama3.2", provider: self)
+        }
     }
 }
 
@@ -136,6 +151,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
     @Published var openAIKey: String = ""
     @Published var anthropicKey: String = ""
     @Published var githubToken: String = ""
+    @Published var ollamaServerURL: String = "http://localhost:11434"  // Add this line
 
     @Published var selectedProvider: ChatProvider = .openAI
     @Published var selectedModelId: String
@@ -164,6 +180,8 @@ final class AppSettings: ObservableObject, Codable, Equatable {
             return anthropicKey
         case .githubModel:
             return githubToken
+        case .ollama:
+            return ""  // Team no keys!
         }
     }
 
@@ -216,6 +234,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         case autoplayVoice
         case themeMode
         case modelsForProvider
+        case ollamaServerURL  // Add this line
     }
 
     /// Decodes `AppSettings` from the given decoder (for instance, loading from UserDefaults).
@@ -245,6 +264,8 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         ) {
             modelsForProvider = decodedModels
         }
+
+        ollamaServerURL = try container.decode(String.self, forKey: .ollamaServerURL)  // Add this line
     }
 
     /// Encodes `AppSettings` to the given encoder (for instance, saving to UserDefaults).
@@ -266,6 +287,8 @@ final class AppSettings: ObservableObject, Codable, Equatable {
 
         // Encode any dynamically fetched models
         try container.encode(modelsForProvider, forKey: .modelsForProvider)
+
+        try container.encode(ollamaServerURL, forKey: .ollamaServerURL)  // Add this line
     }
 
     // MARK: - Equatable
@@ -283,6 +306,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         lhs.selectedOpenAIVoice == rhs.selectedOpenAIVoice &&
         lhs.autoplayVoice == rhs.autoplayVoice &&
         lhs.themeMode == rhs.themeMode &&
-        lhs.modelsForProvider == rhs.modelsForProvider
+        lhs.modelsForProvider == rhs.modelsForProvider &&
+        lhs.ollamaServerURL == rhs.ollamaServerURL
     }
 }

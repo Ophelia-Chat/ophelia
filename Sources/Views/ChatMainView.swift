@@ -52,11 +52,17 @@ struct ChatMainView: View {
                 // The chat input bar
                 ChatInputContainer(
                     inputText: $viewModel.inputText,
-                    isDisabled: viewModel.appSettings.currentAPIKey.isEmpty,
+                    isDisabled: {
+                        switch viewModel.appSettings.selectedProvider {
+                        case .openAI, .anthropic, .githubModel:
+                            return viewModel.appSettings.currentAPIKey.isEmpty
+                        case .ollama:
+                            return false
+                        }
+                    }(),
                     onSend: {
                         Task { @MainActor in
                             viewModel.sendMessage()
-                            // Optional: fieldIsFocused = false if you want to hide keyboard
                         }
                     }
                 )

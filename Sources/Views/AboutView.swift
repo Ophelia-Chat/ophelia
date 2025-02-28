@@ -20,7 +20,7 @@ struct AboutView: View {
                 Text("""
                      Ophelia is a minimalist, SwiftUI-based chatbot interface designed for smooth and \
                      engaging conversations. It supports multiple AI providers—OpenAI, Anthropic, \
-                     and GitHub/Azure-based models—and offers features such as speech synthesis and \
+                     GitHub/Azure-based models, and Ollama for local inference—and offers features such as speech synthesis and \
                      a customizable system message. Stay productive, creative, and connected with Ophelia!
                      """)
                 .font(.body)
@@ -30,9 +30,9 @@ struct AboutView: View {
                     .font(.headline)
                 
                 Text("""
-                     • **Multiple AI Providers**: Effortlessly switch between OpenAI, Anthropic, and GitHub/Azure models.
+                     • **Multiple AI Providers**: Effortlessly switch between OpenAI, Anthropic, GitHub/Azure models, and Ollama for local inference.
                      • **Speech Integration**: Autoplay responses with system voices or OpenAI-based TTS.
-                     • **Customizable System Message**: Personalize the AI’s behavior and style.
+                     • **Customizable System Message**: Personalize the AI's behavior and style.
                      • **Active Development**: Experience early features via the TestFlight beta, helping refine Ophelia.
                      """)
                 .font(.subheadline)
@@ -80,6 +80,11 @@ struct AboutView: View {
                         .bold()
                     Text("Robin Kroonen")
                 }
+                
+                Link("Visit KROONEN.AI",
+                     destination: URL(string: "https://kroonen.ai")!)
+                .foregroundColor(.blue)
+                .padding(.top, 8)
                 
                 Spacer()
             }

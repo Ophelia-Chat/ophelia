@@ -39,6 +39,14 @@
 
 import Foundation
 
+// MARK: - Response Types
+private struct OllamaTagsResponse: Decodable {
+    struct Model: Decodable {
+        let name: String
+    }
+    let models: [Model]
+}
+
 /// An actor responsible for fetching and decoding model lists from various AI provider endpoints.
 actor ModelListService {
     
@@ -82,6 +90,46 @@ actor ModelListService {
             // Instead of hitting the network, just return the provider’s built-in model list.
             // You have these pre-defined in ChatProvider.availableModels, so let’s use that.
             return provider.availableModels
+            
+        case .ollama:
+            let request = try buildRequest(for: .ollama, apiKey: apiKey)
+            print("[ModelListService] Attempting to fetch Ollama models from: \(request.url?.absoluteString ?? "invalid URL")")
+            
+            do {
+                let (data, response) = try await urlSession.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw ChatServiceError.invalidResponse
+                }
+                
+                if httpResponse.statusCode != 200 {
+                    let body = String(data: data, encoding: .utf8) ?? "No response body"
+                    print("[ModelListService] Server returned \(httpResponse.statusCode): \(body)")
+                    throw ChatServiceError.serverError("HTTP \(httpResponse.statusCode)")
+                }
+                
+                let decoded = try JSONDecoder().decode(OllamaTagsResponse.self, from: data)
+                if decoded.models.isEmpty {
+                    print("[ModelListService] Warning: Ollama returned empty model list")
+                }
+                return decoded.models.map { model in
+                    ChatModel(id: model.name, name: model.name, provider: .ollama)
+                }
+            } catch let error as URLError {
+                print("[ModelListService] Network error: \(error.localizedDescription)")
+                switch error.code {
+                case .cannotFindHost, .cannotConnectToHost, .timedOut:
+                    throw ChatServiceError.invalidRequest("""
+                        Could not connect to Ollama server at \(apiKey). 
+                        Please check:
+                        1. The server is running
+                        2. The URL is correct
+                        3. If using a hostname, try using the IP address instead
+                        """)
+                default:
+                    throw error
+                }
+            }
         }
     }
     
@@ -119,6 +167,14 @@ actor ModelListService {
             request = URLRequest(url: url)
             // Azure-based endpoints often require "api-key" in the header
             request.addValue(apiKey, forHTTPHeaderField: "api-key")
+            
+        case .ollama:
+            // Use the apiKey parameter which contains the server URL for Ollama
+            let serverURL = apiKey.trimmingCharacters(in: .whitespaces)
+            guard let url = URL(string: "\(serverURL)/api/tags") else {
+                throw ChatServiceError.invalidRequest("Invalid Ollama server URL")
+            }
+            request = URLRequest(url: url)
         }
         
         request.httpMethod = "GET"
@@ -199,6 +255,21 @@ actor ModelListService {
                     id: item.id,
                     name: item.name,
                     provider: .githubModel
+                )
+            }
+            
+        case .ollama:
+            #if DEBUG
+            let rawStr = String(data: data, encoding: .utf8) ?? "<no data>"
+            print("Ollama /api/tags raw JSON:\n", rawStr)
+            #endif
+            
+            let decoded = try JSONDecoder().decode(OllamaTagsResponse.self, from: data)
+            return decoded.models.map { info in
+                ChatModel(
+                    id: info.name,
+                    name: info.name,
+                    provider: .ollama
                 )
             }
         }

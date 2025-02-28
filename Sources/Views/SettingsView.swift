@@ -28,6 +28,10 @@ struct ActivityViewControllerWrapper: UIViewControllerRepresentable {
 struct SettingsView: View {
     // MARK: - Observed Properties
     @ObservedObject var chatViewModel: ChatViewModel
+    
+    // Add these new state properties
+    @State private var errorMessage: String?
+    @State private var showError = false
 
     /// A cache of available AVSpeechSynthesisVoices, if using system TTS.
     @State private var systemVoices: [AVSpeechSynthesisVoice] = []
@@ -62,6 +66,12 @@ struct SettingsView: View {
             clearHistorySection
         }
         .navigationTitle("Settings")
+        // Add the error alert
+        .alert("Error", isPresented: $showError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
         // Displays share sheet for JSON exports
         .sheet(isPresented: $isShowingShareSheet) {
             ActivityViewControllerWrapper(
@@ -151,7 +161,7 @@ extension SettingsView {
 
             Button("Refresh Models") {
                 Task {
-                    if provider == .openAI {
+                    if provider == .openAI || provider == .ollama {
                         await fetchModels(for: provider, force: true)
                     } else {
                         applyFallbackModels(for: provider)
@@ -201,6 +211,24 @@ extension SettingsView {
                             print("[SettingsView] GitHub token changed -> saved.")
                         }
                     }
+            case .ollama:
+                TextField("Ollama Server URL", text: $chatViewModel.appSettings.ollamaServerURL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: chatViewModel.appSettings.ollamaServerURL) { _, newURL in
+                        Task {
+                            // Remove trailing slashes that might cause issues
+                            chatViewModel.appSettings.ollamaServerURL = newURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                            await chatViewModel.saveSettings()
+                            chatViewModel.initializeChatService(with: chatViewModel.appSettings)
+                            
+                            // Try to refresh models with new URL
+                            await fetchModels(for: .ollama, force: true)
+                        }
+                    }
+                Text("Configure your Ollama server URL (default: http://localhost:11434). If using a hostname and having connection issues, try using the IP address instead.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
         }
     }
@@ -318,26 +346,38 @@ extension SettingsView {
 extension SettingsView {
     /// Attempts to fetch new models if provider == .openAI; otherwise uses fallback.
     private func fetchModels(for provider: ChatProvider, force: Bool = false) async {
-        guard provider == .openAI else {
+        guard provider == .openAI || provider == .ollama else {
             applyFallbackModels(for: provider)
             return
         }
         
         do {
+            let apiKey = provider == .ollama ? chatViewModel.appSettings.ollamaServerURL : chatViewModel.appSettings.currentAPIKey
+            
             let fetched = try await ModelListService().fetchModels(
                 for: provider,
-                apiKey: chatViewModel.appSettings.currentAPIKey
+                apiKey: apiKey
             )
-            chatViewModel.appSettings.modelsForProvider[provider] = fetched
             
-            // If selected model no longer valid, pick the first fetched as default
-            if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
-               let first = fetched.first {
-                chatViewModel.appSettings.selectedModelId = first.id
+            if !fetched.isEmpty {
+                chatViewModel.appSettings.modelsForProvider[provider] = fetched
+                
+                if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
+                   let first = fetched.first {
+                    chatViewModel.appSettings.selectedModelId = first.id
+                }
+                
+                await chatViewModel.saveSettings()
+            } else {
+                print("[SettingsView] Warning: Received empty model list from \(provider)")
             }
         } catch {
-            print("Failed to fetch models for \(provider): \(error)")
+            print("[SettingsView] Failed to fetch models for \(provider): \(error)")
             applyFallbackModels(for: provider)
+            
+            // Show error alert for network issues
+            errorMessage = error.localizedDescription
+            showError = true
         }
     }
 
@@ -360,6 +400,8 @@ extension SettingsView {
             return "Uses Anthropic's Claude models"
         case .githubModel:
             return "Uses GitHub/Azure-based model endpoints."
+        case .ollama:
+            return "Uses Ollama local LLM. Make sure Ollama is running at http://localhost:11434. No API key required."
         }
     }
 
@@ -369,6 +411,8 @@ extension SettingsView {
             return "Enter your OpenAI API key from platform.openai.com"
         case .anthropic:
             return "Enter your Anthropic API key from console.anthropic.com"
+        case .ollama:
+            return "No API key required. Provide a key only if the local server is protected, else leave blank."
         case .githubModel:
             return "Enter your GitHub token for Azure-based model access."
         }

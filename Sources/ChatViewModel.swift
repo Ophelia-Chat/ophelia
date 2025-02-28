@@ -111,6 +111,12 @@ class ChatViewModel: ObservableObject {
     private var openAITTSService: OpenAITTSService?
     private var systemVoiceService: SystemVoiceService?
 
+    /**
+     If we choose to add a custom OllamaService instance, we handle it the same as
+     OpenAI or Anthropic or GitHub. We'll store it in chatService if user picks
+     that provider. This is done in `initializeChatService`.
+     */
+
     // MARK: - Persistence Tools
 
     /// Reference to UserDefaults for reading/writing settings and messages.
@@ -123,7 +129,7 @@ class ChatViewModel: ObservableObject {
     // MARK: - Token Batching Configuration
 
     /// Number of tokens to accumulate before flushing to the AI message text.
-    private let tokenBatchSize = 5
+    private let tokenBatchSize = 1
 
     /// Max time interval before forcibly flushing tokens, to keep UI responsive.
     private let tokenFlushInterval: TimeInterval = 0.2
@@ -240,9 +246,11 @@ class ChatViewModel: ObservableObject {
         print("[Debug] Provider: \(appSettings.selectedProvider)")
         print("[Debug] Using API Key: \(maskAPIKey(appSettings.currentAPIKey))")
 
-        // 1) Validate non-empty input and valid API key.
+        // 1) Validate non-empty input and valid API key when needed
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard !appSettings.currentAPIKey.isEmpty else {
+        
+        // Only check for API key if the provider isn't Ollama
+        if appSettings.selectedProvider != .ollama && appSettings.currentAPIKey.isEmpty {
             print("[ChatViewModel] No valid API key for provider \(appSettings.selectedProvider).")
             handleError(ChatServiceError.invalidAPIKey)
             return
@@ -363,7 +371,8 @@ class ChatViewModel: ObservableObject {
      Ensures changes to provider, model, or keys take effect immediately.
      */
     internal func initializeChatService(with settings: AppSettings) {
-        guard !settings.currentAPIKey.isEmpty else {
+        // For Ollama, we don't require an API key
+        if settings.selectedProvider != .ollama && settings.currentAPIKey.isEmpty {
             chatService = nil
             print("[ChatViewModel] No valid API key for provider \(settings.selectedProvider).")
             return
@@ -381,6 +390,11 @@ class ChatViewModel: ObservableObject {
         case .githubModel:
             chatService = GitHubModelChatService(apiKey: settings.githubToken)
             print("[ChatViewModel] Initialized GitHub Model Chat Service with key: \(maskAPIKey(settings.githubToken))")
+            
+        case .ollama:
+            let service = OllamaService(serverURL: settings.ollamaServerURL)
+            self.chatService = service
+            print("[ChatViewModel] Initialized Ollama service with URL: \(settings.ollamaServerURL)")
         }
     }
 
@@ -501,7 +515,8 @@ class ChatViewModel: ObservableObject {
      streaming response tokens. Also manages insertion of system messages (e.g. instructions).
      */
     private func performSendFlow() async {
-        print("[ChatViewModel] Sending message to API...")
+        print("[ChatViewModel] *** STARTING NEW SEND FLOW ***")
+        print("[ChatViewModel] Provider: \(appSettings.selectedProvider.rawValue), Model: \(appSettings.selectedModelId)")
 
         // 1) Create a placeholder AI message that we'll update with streaming tokens.
         let aiMessage = MutableMessage(
@@ -519,37 +534,48 @@ class ChatViewModel: ObservableObject {
 
             // 2) Build the list of messages to send, possibly including relevant memories.
             let payload = await prepareMessagesPayload()
-
-            // 3) Handle system message if needed (OpenAI/GitHub typically embed as role=system).
-            //    Anthropic uses a separate `system` param.
-            if (appSettings.selectedProvider == .openAI || appSettings.selectedProvider == .githubModel),
-               !appSettings.systemMessage.isEmpty {
-                var updated = payload
-                updated.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
-
-                // For Anthropic, pass system text separately.
-                let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
-                                    ? appSettings.systemMessage
-                                    : nil
-
-                let stream = try await service.streamCompletion(
-                    messages: updated,
-                    model: appSettings.selectedModelId,
-                    system: systemMessage
-                )
-                let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
-                await finalizeResponseProcessing(completeResponse: completeResponse)
-
+            
+            // 3) Handle system message based on provider
+            // Determine which providers use system message in the payload vs. as separate parameter
+            let shouldIncludeSystemInPayload = (appSettings.selectedProvider == .openAI || 
+                                              appSettings.selectedProvider == .githubModel || 
+                                              appSettings.selectedProvider == .ollama)
+            
+            let systemMessageParam: String?
+            
+            if !appSettings.systemMessage.isEmpty {
+                if appSettings.selectedProvider == .anthropic {
+                    systemMessageParam = appSettings.systemMessage  // Anthropic expects system as separate param
+                } else {
+                    systemMessageParam = appSettings.systemMessage  // For Ollama, we'll send both ways for robustness
+                }
+                
+                if shouldIncludeSystemInPayload {
+                    var updated = payload
+                    updated.insert(["role": "system", "content": appSettings.systemMessage], at: 0)
+                    
+                    let stream = try await service.streamCompletion(
+                        messages: updated,
+                        model: appSettings.selectedModelId,
+                        system: systemMessageParam
+                    )
+                    let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
+                    await finalizeResponseProcessing(completeResponse: completeResponse)
+                } else {
+                    let stream = try await service.streamCompletion(
+                        messages: payload,
+                        model: appSettings.selectedModelId,
+                        system: systemMessageParam
+                    )
+                    let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
+                    await finalizeResponseProcessing(completeResponse: completeResponse)
+                }
             } else {
-                // For Anthropic or other providers.
-                let systemMessage = (appSettings.selectedProvider == .anthropic && !appSettings.systemMessage.isEmpty)
-                                    ? appSettings.systemMessage
-                                    : nil
-
+                // No system message at all, just send the message payload
                 let stream = try await service.streamCompletion(
                     messages: payload,
                     model: appSettings.selectedModelId,
-                    system: systemMessage
+                    system: nil
                 )
                 let completeResponse = try await handleResponseStream(stream, aiMessage: aiMessage)
                 await finalizeResponseProcessing(completeResponse: completeResponse)
@@ -568,13 +594,28 @@ class ChatViewModel: ObservableObject {
      an empty placeholder or keep the message and optionally speak it. Then persists messages.
      */
     private func finalizeResponseProcessing(completeResponse: String) async {
-        print("[ChatViewModel] Received response: \(completeResponse)")
-
-        let trimmed = completeResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[ChatViewModel] Received complete response, raw length: \(completeResponse.count)")
+        
+        // Clean up the response by removing any trailing JSON metadata
+        var cleanedResponse = completeResponse
+        if let jsonStart = completeResponse.range(of: "{\"model\":") {
+            cleanedResponse = String(completeResponse[..<jsonStart.lowerBound])
+        }
+        
+        let trimmed = cleanedResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[ChatViewModel] Cleaned response length: \(trimmed.count)")
+        
         if trimmed.isEmpty, let last = messages.last, !last.isUser {
             // If the AI message is empty, remove the placeholder.
             messages.removeLast()
         } else {
+            // If we have text, update the message with cleaned text and optionally speak it
+            if let lastMessage = messages.last, !lastMessage.isUser {
+                // Replace the entire message text with the cleaned version
+                lastMessage.text = trimmed
+                objectWillChange.send()
+            }
+            
             // If we have text, optionally speak it if autoplay is on.
             speakMessage(trimmed)
             await saveMessages()
@@ -664,73 +705,70 @@ class ChatViewModel: ObservableObject {
     ) async throws -> String {
         var completeResponse = ""
         var tokenCount = 0
+        
+        print("[ChatViewModel] STREAMING STARTED - Provider: \(appSettings.selectedProvider.rawValue), Model: \(appSettings.selectedModelId)")
 
-        // Prepare haptic feedback
         let feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
         let finalFeedbackGenerator = UINotificationFeedbackGenerator()
         feedbackGenerator.prepare()
         finalFeedbackGenerator.prepare()
 
-        // Reset token buffering
         tokenBuffer = ""
         lastFlushDate = Date()
         flushTask?.cancel()
         flushTask = nil
 
-        // Consume tokens as they arrive.
         for try await content in stream {
-            if Task.isCancelled { break }
+            // Filter out JSON metadata that might be included in tokens
+            if content.hasPrefix("{\"model\":") {
+                print("[ChatViewModel] Skipping JSON metadata in token stream")
+                continue
+            }
+            
+            print("[ChatViewModel] Received token: \"\(content)\"")
+
+            if Task.isCancelled { 
+                print("[ChatViewModel] Stream cancelled")
+                break 
+            }
 
             tokenBuffer.append(content)
             completeResponse.append(content)
+
             tokenCount += 1
 
-            // Flush every tokenBatchSize tokens for responsiveness.
-            if tokenCount % tokenBatchSize == 0 {
-                await flushTokens(aiMessage: aiMessage)
-            } else {
-                scheduleFlush(aiMessage: aiMessage)
-            }
-
-            // Provide light haptic feedback every 5 tokens.
+            // IMPORTANT: Force flush each token immediately for debugging
+            await flushTokens(aiMessage: aiMessage, force: true)
+            
+            // Optional haptic every 5 tokens
             if tokenCount % 5 == 0 {
                 feedbackGenerator.impactOccurred()
             }
         }
 
-        // Ensure we flush any leftover tokens at the end.
+        // Make sure we flush any leftover tokens:
         await flushTokens(aiMessage: aiMessage, force: true)
         finalFeedbackGenerator.notificationOccurred(.success)
+        
+        print("[ChatViewModel] STREAMING COMPLETE - Total tokens: \(tokenCount)")
 
         return completeResponse
     }
 
-    /**
-     Schedules a flush after `tokenFlushInterval` if no further tokens arrive,
-     preventing partial text from building up too long.
-     */
-    private func scheduleFlush(aiMessage: MutableMessage) {
-        flushTask?.cancel()
-        flushTask = Task { [weak self] in
-            guard let self = self else { return }
-            try? await Task.sleep(nanoseconds: UInt64(self.tokenFlushInterval * 1_000_000_000))
-            await self.flushTokens(aiMessage: aiMessage)
-        }
-    }
-
-    /**
-     Moves any accumulated tokens into the AI message text.
-     - Parameter aiMessage: The AI message being updated.
-     - Parameter force: If `true`, flushes even if batch/time thresholds aren't reached.
-     */
     private func flushTokens(aiMessage: MutableMessage, force: Bool = false) async {
         guard force || !tokenBuffer.isEmpty else { return }
-
+        
         let tokensToApply = tokenBuffer
+        print("[ChatViewModel] Flushing tokens: \"\(tokensToApply)\"")
+        
         tokenBuffer = ""
-
-        aiMessage.text.append(tokensToApply)
-        objectWillChange.send()
+        
+        // Make sure we update the UI on the main actor
+        await MainActor.run {
+            aiMessage.text += tokensToApply
+            objectWillChange.send()
+        }
+        
         lastFlushDate = Date()
     }
 
