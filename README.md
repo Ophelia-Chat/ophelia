@@ -115,15 +115,12 @@ Help shape the future of Ophelia by joining the TestFlight beta. You’ll get ex
 
 ## License 📄
 
-Ophelia is open source under the [GNU Affero General Public License v3.0](LICENSE).  
-[Learn more about AGPL v3](https://www.gnu.org/licenses/agpl-3.0.html)
-
-> Any use of this software over a network must provide access to the source code.
+Ophelia.Chat is open source under MIT License.
 
 ---
 
 <div align="center">
   <p><strong>We do this for the good—enhancing AI-human synergy responsibly.</strong></p>
   <p>Feedback and contributions are always appreciated! 🤗</p>
-  <p>Built with ✨ by <a href="https://kroonen.ai">Robin Kroonen</a></p>
+  <p>Built by <a href="https://kroonen.ai">Kroonen AI, Inc.</a></p>
 </div>
