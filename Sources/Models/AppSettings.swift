@@ -151,7 +151,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
     @Published var openAIKey: String = ""
     @Published var anthropicKey: String = ""
     @Published var githubToken: String = ""
-    @Published var ollamaServerURL: String = "http://localhost:11434"  // Add this line
+    @Published var ollamaServerURL: String = "http://localhost:11434"
 
     @Published var selectedProvider: ChatProvider = .openAI
     @Published var selectedModelId: String
@@ -234,7 +234,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         case autoplayVoice
         case themeMode
         case modelsForProvider
-        case ollamaServerURL  // Add this line
+        case ollamaServerURL
     }
 
     /// Decodes `AppSettings` from the given decoder (for instance, loading from UserDefaults).
@@ -265,7 +265,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
             modelsForProvider = decodedModels
         }
 
-        ollamaServerURL = try container.decode(String.self, forKey: .ollamaServerURL)  // Add this line
+        ollamaServerURL = try container.decode(String.self, forKey: .ollamaServerURL)
     }
 
     /// Encodes `AppSettings` to the given encoder (for instance, saving to UserDefaults).
@@ -288,7 +288,7 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         // Encode any dynamically fetched models
         try container.encode(modelsForProvider, forKey: .modelsForProvider)
 
-        try container.encode(ollamaServerURL, forKey: .ollamaServerURL)  // Add this line
+        try container.encode(ollamaServerURL, forKey: .ollamaServerURL)
     }
 
     // MARK: - Equatable

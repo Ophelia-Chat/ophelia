@@ -4,7 +4,7 @@
 //
 //  Description:
 //  Fetches model lists from different AI providers (OpenAI, Anthropic, GitHub/Azure).
-//  Includes logic for decoding the known shapes of each provider’s /models response.
+//  Includes logic for decoding the known shapes of each provider's /models response.
 //
 //  Notes on Provider Differences:
 //
@@ -71,7 +71,7 @@ actor ModelListService {
     ///
     /// - Parameters:
     ///   - provider: The `ChatProvider` enum case (e.g., `.openAI`, `.anthropic`, `.githubModel`).
-    ///   - apiKey:   The user’s API key or token for that provider.
+    ///   - apiKey:   The user's API key or token for that provider.
     /// - Returns:    An array of `ChatModel` objects (each with id, name, and provider).
     func fetchModels(for provider: ChatProvider, apiKey: String) async throws -> [ChatModel] {
         switch provider {
@@ -87,13 +87,47 @@ actor ModelListService {
             return try parseResponse(data: data, provider: .openAI)
             
         case .anthropic, .githubModel:
-            // Instead of hitting the network, just return the provider’s built-in model list.
-            // You have these pre-defined in ChatProvider.availableModels, so let’s use that.
+            // Instead of hitting the network, just return the provider's built-in model list.
+            // You have these pre-defined in ChatProvider.availableModels, so let's use that.
             return provider.availableModels
             
         case .ollama:
-            let request = try buildRequest(for: .ollama, apiKey: apiKey)
-            print("[ModelListService] Attempting to fetch Ollama models from: \(request.url?.absoluteString ?? "invalid URL")")
+            // Safety check the URL before attempting to connect
+            let serverURLString = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // 1. Validate URL structure first
+            guard var urlComponents = URLComponents(string: serverURLString) else {
+                print("[ModelListService] Invalid Ollama server URL format: \(serverURLString)")
+                return [ChatModel(id: "llama3", name: "llama3 (Default)", provider: .ollama)]
+            }
+            
+            // 2. Ensure the URL has a scheme - if missing, add http://
+            if urlComponents.scheme == nil {
+                urlComponents.scheme = "http"
+                print("[ModelListService] Added http:// scheme to Ollama URL")
+            }
+            
+            // 3. Make sure the scheme is either http or https
+            if urlComponents.scheme != "http" && urlComponents.scheme != "https" {
+                print("[ModelListService] Invalid scheme in Ollama URL: \(urlComponents.scheme ?? "nil")")
+                return [ChatModel(id: "llama3", name: "llama3 (Default)", provider: .ollama)]
+            }
+            
+            // 4. Get the finalized URL with proper scheme
+            guard let finalURL = urlComponents.url else {
+                print("[ModelListService] Failed to create URL from components")
+                return [ChatModel(id: "llama3", name: "llama3 (Default)", provider: .ollama)]
+            }
+            
+            // 5. Build the tags URL
+            let tagsURL = finalURL.appendingPathComponent("api/tags")
+            
+            print("[ModelListService] Attempting to fetch Ollama models from: \(tagsURL.absoluteString)")
+            
+            // 6. Create the request with the validated URL
+            var request = URLRequest(url: tagsURL)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 5 // Short timeout to avoid long hangs
             
             do {
                 let (data, response) = try await urlSession.data(for: request)
@@ -116,26 +150,29 @@ actor ModelListService {
                     ChatModel(id: model.name, name: model.name, provider: .ollama)
                 }
             } catch let error as URLError {
-                print("[ModelListService] Network error: \(error.localizedDescription)")
+                print("[ModelListService] Network error: \(error.localizedDescription), code: \(error.code.rawValue)")
+                
+                // Handle connection errors more gracefully
                 switch error.code {
-                case .cannotFindHost, .cannotConnectToHost, .timedOut:
-                    throw ChatServiceError.invalidRequest("""
-                        Could not connect to Ollama server at \(apiKey). 
-                        Please check:
-                        1. The server is running
-                        2. The URL is correct
-                        3. If using a hostname, try using the IP address instead
-                        """)
+                case .cannotFindHost, .cannotConnectToHost, .timedOut, .badURL:
+                    // Return a default model rather than throwing an error
+                    print("[ModelListService] Cannot connect to Ollama server at \(finalURL.absoluteString)")
+                    return [ChatModel(id: "llama3", name: "llama3 (Default)", provider: .ollama)]
                 default:
-                    throw error
+                    // For other URL errors, return a sensible fallback
+                    return [ChatModel(id: "llama3", name: "llama3 (Fallback)", provider: .ollama)]
                 }
+            } catch {
+                // For any other errors, return a default model instead of throwing
+                print("[ModelListService] General error fetching Ollama models: \(error.localizedDescription)")
+                return [ChatModel(id: "llama3", name: "llama3 (Default)", provider: .ollama)]
             }
         }
     }
     
     // MARK: - Private Helpers
     
-    /// Constructs a GET request for the appropriate provider’s /models endpoint, adding required headers.
+    /// Constructs a GET request for the appropriate provider's /models endpoint, adding required headers.
     private func buildRequest(for provider: ChatProvider, apiKey: String) throws -> URLRequest {
         var request: URLRequest
         
@@ -169,19 +206,16 @@ actor ModelListService {
             request.addValue(apiKey, forHTTPHeaderField: "api-key")
             
         case .ollama:
-            // Use the apiKey parameter which contains the server URL for Ollama
-            let serverURL = apiKey.trimmingCharacters(in: .whitespaces)
-            guard let url = URL(string: "\(serverURL)/api/tags") else {
-                throw ChatServiceError.invalidRequest("Invalid Ollama server URL")
-            }
-            request = URLRequest(url: url)
+            // For Ollama, the URL creation is now handled in the fetchModels method
+            // to provide better validation and error handling
+            throw URLError(.badURL, userInfo: ["message": "Ollama requests should be created in fetchModels"])
         }
         
         request.httpMethod = "GET"
         return request
     }
     
-    /// Decodes the raw JSON into `[ChatModel]`, adapting for each provider’s known shapes.
+    /// Decodes the raw JSON into `[ChatModel]`, adapting for each provider's known shapes.
     private func parseResponse(data: Data, provider: ChatProvider) throws -> [ChatModel] {
         switch provider {
             

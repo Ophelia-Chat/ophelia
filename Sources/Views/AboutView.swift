@@ -76,7 +76,7 @@ struct AboutView: View {
                 HStack {
                     Text("Developer:")
                         .bold()
-                    Text("KROONEN AI, Inc.")
+                    Text("KROONEN AI Inc.")
                 }
 
                 Link("Visit KROONEN.AI",

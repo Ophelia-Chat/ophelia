@@ -20,15 +20,53 @@ actor OllamaService: ChatServiceProtocol {
         config.waitsForConnectivity = true
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.urlSession = URLSession(configuration: config)
-        self.serverURL = serverURL
-
-        // Validate the server URL, else default to localhost
-        if let url = URL(string: serverURL) {
-            self.baseURL = url
+        
+        // Store the original server URL string
+        self.serverURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Validate and process the server URL
+        var finalURL: URL
+        
+        // Fix common URL issues - like duplicate http:// prefixes
+        var processedURLString = self.serverURL
+        
+        // Handle URLs with multiple schemes (like http://http://)
+        if processedURLString.contains("://") {
+            let components = processedURLString.components(separatedBy: "://")
+            if components.count > 1 {
+                // Get the first scheme and the last path component
+                let scheme = components[0].lowercased()
+                let host = components.last ?? ""
+                
+                // Only accept http or https
+                if scheme == "http" || scheme == "https" {
+                    processedURLString = "\(scheme)://\(host)"
+                } else {
+                    // Default to http for any other scheme
+                    processedURLString = "http://\(host)"
+                }
+            }
         } else {
-            print("[OllamaService] Warning: Invalid server URL, falling back to localhost")
-            self.baseURL = URL(string: "http://localhost:11434")!
+            // No scheme at all, add http://
+            processedURLString = "http://" + processedURLString
         }
+        
+        // Remove trailing slashes
+        while processedURLString.hasSuffix("/") {
+            processedURLString.removeLast()
+        }
+        
+        // Try to create the URL from our processed string
+        if let url = URL(string: processedURLString) {
+            finalURL = url
+            print("[OllamaService] Successfully processed URL: \(processedURLString)")
+        } else {
+            print("[OllamaService] Warning: Could not create valid URL from \(processedURLString), falling back to localhost")
+            finalURL = URL(string: "http://localhost:11434")!
+        }
+        
+        self.baseURL = finalURL
+        print("[OllamaService] Initialized with base URL: \(finalURL.absoluteString)")
     }
 
     func updateAPIKey(_ newKey: String) {
@@ -40,7 +78,18 @@ actor OllamaService: ChatServiceProtocol {
         model: String,
         system: String?
     ) async throws -> AsyncThrowingStream<String, Error> {
-        let chatURL = baseURL.appendingPathComponent("api/chat")
+        // Create URL components from baseURL to ensure proper URL construction
+        guard var components = URLComponents(string: baseURL.absoluteString) else {
+            throw ChatServiceError.invalidRequest("Invalid Ollama server URL structure")
+        }
+        
+        // Set the path to "api/chat"
+        components.path = "/api/chat"
+        
+        // Ensure we have a valid URL
+        guard let chatURL = components.url else {
+            throw ChatServiceError.invalidRequest("Failed to create chat URL from components")
+        }
         
         print("[OllamaService] Using model: \(model)")
         print("[OllamaService] Using URL: \(chatURL)")
@@ -108,6 +157,7 @@ actor OllamaService: ChatServiceProtocol {
         var request = URLRequest(url: chatURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 60 // Increase timeout for longer generations
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)

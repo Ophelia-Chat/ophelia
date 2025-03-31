@@ -3,6 +3,7 @@
 //  ophelia
 //
 //  Created by rob on 2024-11-27.
+//  Updated with copy conversation feature
 //
 
 import SwiftUI
@@ -18,8 +19,11 @@ struct ChatView: View {
 
     /// Controls whether to show the Memories sheet
     @State private var showingMemories = false
+    
+    /// Controls toast for copy conversation feedback
+    @State private var showCopiedToast = false
 
-    /// Watches app’s lifecycle states (active, inactive, background)
+    /// Watches app's lifecycle states (active, inactive, background)
     @Environment(\.scenePhase) private var scenePhase
 
     /// Tracks dark mode preference from UserDefaults (in case you rely on it for the background)
@@ -47,6 +51,21 @@ struct ChatView: View {
                      fetched local models, we could attempt to do so again here.
                      Or we can rely on the user to press "Refresh Models" in the UI.
                      */
+                }
+                
+                // Overlay for copy toast feedback
+                if showCopiedToast {
+                    VStack {
+                        Spacer()
+                        Text("Conversation copied to clipboard")
+                            .font(.caption)
+                            .padding(8)
+                            .background(Color.black.opacity(0.7))
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                            .transition(.opacity)
+                            .padding(.bottom, 100)
+                    }
                 }
             }
             // Final async setup each time the view appears (e.g., reload settings & messages)
@@ -93,6 +112,17 @@ struct ChatView: View {
                         Image(systemName: "list.bullet.rectangle.portrait")
                     }
                 }
+                
+                // Center: Copy Conversation
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        copyConversation()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .disabled(viewModel.messages.isEmpty)
+                }
+                
                 // Right side: gear for Settings
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -108,6 +138,28 @@ struct ChatView: View {
                 if newPhase != .active {
                     // e.g., hide keyboard or other cleanup
                 }
+            }
+        }
+    }
+    
+    // MARK: - Copy Entire Conversation
+    private func copyConversation() {
+        let conversationText = viewModel.messages.map { msg in
+            let prefix = msg.isUser ? "You: " : "Ophelia: "
+            return prefix + msg.text
+        }.joined(separator: "\n\n")
+        
+        UIPasteboard.general.string = conversationText
+        
+        // Show feedback toast
+        withAnimation {
+            showCopiedToast = true
+        }
+        
+        // Auto-hide toast after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                showCopiedToast = false
             }
         }
     }

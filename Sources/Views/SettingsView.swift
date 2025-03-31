@@ -45,7 +45,7 @@ struct SettingsView: View {
     /// Toggles the confirmation alert before clearing history.
     @State private var isShowingClearConfirmation = false
 
-    /// Optional callback to clear messages (e.g., “Clear Conversation History”).
+    /// Optional callback to clear messages (e.g., "Clear Conversation History").
     var clearMessages: (() -> Void)? = nil
     
     /// For iOS <15 style dismissal from a Navigation-based context.
@@ -57,6 +57,7 @@ struct SettingsView: View {
             providerSection()
             modelSection
             apiKeySection
+            ollamaSection
             systemMessageSection
             voiceSection
             themeSection
@@ -111,14 +112,21 @@ extension SettingsView {
             .pickerStyle(.segmented)
             .onChange(of: chatViewModel.appSettings.selectedProvider) { oldProvider, newProvider in
                 Task {
-                    // 1) Fetch or apply fallback models
+                    // 1) For OpenAI, only fetch models if we have a valid API key
                     if newProvider == .openAI {
-                        await fetchModels(for: newProvider)
+                        if !chatViewModel.appSettings.openAIKey.isEmpty {
+                            await fetchModels(for: newProvider)
+                        } else {
+                            // Just use fallback models if no key is provided
+                            applyFallbackModels(for: newProvider)
+                            print("[SettingsView] Using fallback models for OpenAI (no API key)")
+                        }
                     } else {
+                        // For other providers, use fallback models
                         applyFallbackModels(for: newProvider)
                     }
                     
-                    // 2) If the user’s chosen model no longer exists for the new provider, reset it
+                    // 2) If the user's chosen model no longer exists for the new provider, reset it
                     let providerList = chatViewModel.appSettings.modelsForProvider[newProvider]
                                      ?? newProvider.availableModels
                     if !providerList.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }) {
@@ -211,24 +219,91 @@ extension SettingsView {
                             print("[SettingsView] GitHub token changed -> saved.")
                         }
                     }
+            
             case .ollama:
+                // For Ollama, we show a placeholder but the full settings are in ollamaSection
+                Text("No API key needed for Ollama. Configure server in Ollama Settings below.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    // MARK: Ollama Settings
+    @ViewBuilder
+    private var ollamaSection: some View {
+        if chatViewModel.appSettings.selectedProvider == .ollama {
+            Section(
+                header: Text("Ollama Settings"),
+                footer: Text("Configure your Ollama server URL (default: http://localhost:11434). Make sure to include http:// or https://")
+            ) {
                 TextField("Ollama Server URL", text: $chatViewModel.appSettings.ollamaServerURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .onChange(of: chatViewModel.appSettings.ollamaServerURL) { _, newURL in
+                        // Process URL when it changes
                         Task {
-                            // Remove trailing slashes that might cause issues
-                            chatViewModel.appSettings.ollamaServerURL = newURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                            // 1. Clean up the URL by trimming whitespace
+                            let trimmedURL = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                            
+                            // 2. Check for and fix common URL issues
+                            var processedURL = trimmedURL
+                            
+                            // Remove any duplicate http:// prefixes (like http://http://)
+                            if processedURL.contains("://") {
+                                // Split by :// and take at most the scheme + the rest
+                                let components = processedURL.components(separatedBy: "://")
+                                if components.count > 1 {
+                                    // Keep only the first scheme and the last component
+                                    let scheme = components[0].lowercased()
+                                    let host = components.last ?? ""
+                                    
+                                    // Only accept http or https schemes
+                                    if scheme == "http" || scheme == "https" {
+                                        processedURL = "\(scheme)://\(host)"
+                                    } else {
+                                        // If scheme is invalid, default to http
+                                        processedURL = "http://\(host)"
+                                    }
+                                }
+                            } else {
+                                // No scheme found, add http://
+                                processedURL = "http://" + processedURL
+                            }
+                            
+                            // 3. Remove trailing slashes
+                            while processedURL.hasSuffix("/") {
+                                processedURL.removeLast()
+                            }
+                            
+                            // 4. Update if different from the original
+                            if processedURL != newURL {
+                                DispatchQueue.main.async {
+                                    chatViewModel.appSettings.ollamaServerURL = processedURL
+                                }
+                            }
+                            
+                            // 5. Save settings and reinitialize service
                             await chatViewModel.saveSettings()
                             chatViewModel.initializeChatService(with: chatViewModel.appSettings)
                             
-                            // Try to refresh models with new URL
-                            await fetchModels(for: .ollama, force: true)
+                            print("[SettingsView] Updated Ollama URL: \(processedURL)")
                         }
                     }
-                Text("Configure your Ollama server URL (default: http://localhost:11434). If using a hostname and having connection issues, try using the IP address instead.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                
+                // Add a Test Connection button
+                Button("Test Connection") {
+                    Task {
+                        let connectionResult = await testOllamaConnection(url: chatViewModel.appSettings.ollamaServerURL)
+                        if connectionResult.success {
+                            errorMessage = "Successfully connected to Ollama server!"
+                            showError = true
+                        } else {
+                            errorMessage = "Connection failed: \(connectionResult.message)"
+                            showError = true
+                        }
+                    }
+                }
             }
         }
     }
@@ -344,40 +419,166 @@ extension SettingsView {
 
 // MARK: - Helpers
 extension SettingsView {
-    /// Attempts to fetch new models if provider == .openAI; otherwise uses fallback.
+    /// Attempts to fetch new models if provider == .openAI or .ollama; otherwise uses fallback.
     private func fetchModels(for provider: ChatProvider, force: Bool = false) async {
+        // If not OpenAI or Ollama, just use fallback models
         guard provider == .openAI || provider == .ollama else {
             applyFallbackModels(for: provider)
             return
         }
         
-        do {
-            let apiKey = provider == .ollama ? chatViewModel.appSettings.ollamaServerURL : chatViewModel.appSettings.currentAPIKey
-            
-            let fetched = try await ModelListService().fetchModels(
-                for: provider,
-                apiKey: apiKey
-            )
-            
-            if !fetched.isEmpty {
-                chatViewModel.appSettings.modelsForProvider[provider] = fetched
+        // For OpenAI, make sure we have an API key
+        if provider == .openAI {
+            guard !chatViewModel.appSettings.openAIKey.isEmpty else {
+                print("[SettingsView] No OpenAI API key provided, using fallback models")
+                applyFallbackModels(for: provider)
                 
-                if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
-                   let first = fetched.first {
-                    chatViewModel.appSettings.selectedModelId = first.id
+                // Only show error if user explicitly requested refresh
+                if force {
+                    errorMessage = "Please enter a valid OpenAI API key first."
+                    showError = true
+                }
+                return
+            }
+            
+            // Continue with fetching if we have a key
+            do {
+                let fetched = try await ModelListService().fetchModels(
+                    for: provider,
+                    apiKey: chatViewModel.appSettings.openAIKey
+                )
+                
+                if !fetched.isEmpty {
+                    chatViewModel.appSettings.modelsForProvider[provider] = fetched
+                    
+                    if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
+                       let first = fetched.first {
+                        chatViewModel.appSettings.selectedModelId = first.id
+                    }
+                    
+                    await chatViewModel.saveSettings()
+                } else {
+                    print("[SettingsView] Warning: Received empty model list from \(provider)")
+                }
+            } catch {
+                print("[SettingsView] Failed to fetch models for \(provider): \(error)")
+                applyFallbackModels(for: provider)
+                
+                // Show error alert for network issues only if force refresh or explicit request
+                if force {
+                    errorMessage = "Failed to fetch models: \(error.localizedDescription)"
+                    showError = true
+                }
+            }
+            return
+        }
+        
+        // For Ollama, continue with existing handling
+        if provider == .ollama {
+            do {
+                var serverURL = chatViewModel.appSettings.ollamaServerURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Add http:// scheme if missing
+                if !serverURL.hasPrefix("http://") && !serverURL.hasPrefix("https://") {
+                    serverURL = "http://" + serverURL
+                    // Update the UI value with the corrected URL
+                    DispatchQueue.main.async {
+                        chatViewModel.appSettings.ollamaServerURL = serverURL
+                    }
                 }
                 
-                await chatViewModel.saveSettings()
+                print("[SettingsView] Fetching Ollama models from: \(serverURL)")
+                
+                let fetched = try await ModelListService().fetchModels(
+                    for: provider,
+                    apiKey: serverURL
+                )
+                
+                if !fetched.isEmpty {
+                    chatViewModel.appSettings.modelsForProvider[provider] = fetched
+                    
+                    if !fetched.contains(where: { $0.id == chatViewModel.appSettings.selectedModelId }),
+                       let first = fetched.first {
+                        chatViewModel.appSettings.selectedModelId = first.id
+                    }
+                    
+                    await chatViewModel.saveSettings()
+                } else {
+                    print("[SettingsView] Warning: Received empty model list from Ollama")
+                    // Apply fallback if empty
+                    applyFallbackModels(for: provider)
+                }
+            } catch {
+                print("[SettingsView] Failed to fetch Ollama models: \(error)")
+                
+                // Apply fallback models but DON'T show error alert for Ollama connection issues
+                applyFallbackModels(for: provider)
+                
+                // Only show a more helpful error message if the user explicitly requested a refresh
+                if force {
+                    errorMessage = "Cannot connect to Ollama server at \(chatViewModel.appSettings.ollamaServerURL). Please check that Ollama is running and the URL is correct."
+                    showError = true
+                }
+            }
+        }
+    }
+
+    /// Tests the connection to an Ollama server
+    private func testOllamaConnection(url: String) async -> (success: Bool, message: String) {
+        // 1. Validate URL format
+        guard var components = URLComponents(string: url) else {
+            return (false, "Invalid URL format")
+        }
+        
+        // 2. Add scheme if missing
+        if components.scheme == nil {
+            components.scheme = "http"
+        }
+        
+        // 3. Only accept http/https
+        if components.scheme != "http" && components.scheme != "https" {
+            return (false, "URL must use http:// or https://")
+        }
+        
+        // 4. Get final URL
+        guard let finalURL = components.url else {
+            return (false, "Could not create URL from components")
+        }
+        
+        // 5. Build the test URL (api/tags is a lightweight endpoint)
+        let testURL = finalURL.appendingPathComponent("api/tags")
+        
+        // 6. Create request with short timeout
+        var request = URLRequest(url: testURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return (false, "Invalid response type")
+            }
+            
+            if httpResponse.statusCode == 200 {
+                return (true, "Connection successful")
             } else {
-                print("[SettingsView] Warning: Received empty model list from \(provider)")
+                return (false, "Server returned status code: \(httpResponse.statusCode)")
+            }
+        } catch let error as URLError {
+            switch error.code {
+            case .cannotFindHost:
+                return (false, "Cannot find host. Check the server address.")
+            case .cannotConnectToHost:
+                return (false, "Cannot connect to server. Is Ollama running?")
+            case .timedOut:
+                return (false, "Connection timed out. Server may be unreachable.")
+            case .networkConnectionLost:
+                return (false, "Network connection lost during request.")
+            default:
+                return (false, "URL error: \(error.localizedDescription)")
             }
         } catch {
-            print("[SettingsView] Failed to fetch models for \(provider): \(error)")
-            applyFallbackModels(for: provider)
-            
-            // Show error alert for network issues
-            errorMessage = error.localizedDescription
-            showError = true
+            return (false, "Error: \(error.localizedDescription)")
         }
     }
 
@@ -412,7 +613,7 @@ extension SettingsView {
         case .anthropic:
             return "Enter your Anthropic API key from console.anthropic.com"
         case .ollama:
-            return "No API key required. Provide a key only if the local server is protected, else leave blank."
+            return "No API key required. See Ollama Settings section below."
         case .githubModel:
             return "Enter your GitHub token for Azure-based model access."
         }
