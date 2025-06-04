@@ -1,126 +1,281 @@
-# Ophelia &nbsp; <img alt="License" src="https://img.shields.io/github/license/kroonen/ophelia?style=flat-square"> <img alt="TestFlight Beta" src="https://img.shields.io/badge/TestFlight-Beta-blue?style=flat-square">
+# Ophelia
 
-Ophelia is a minimalist, SwiftUI-based chatbot interface created for smoother, more engaging conversations.  
-It supports multiple AI providers—OpenAI, Anthropic, GitHub/Azure-based models—and offers a TestFlight beta for convenient early access. Enjoy speech synthesis, customizable settings, and a dedicated system message field to shape the AI’s behavior.
+<div align="center">
+  <img alt="License" src="https://img.shields.io/github/license/kroonen/ophelia?style=flat-square">
+  <img alt="TestFlight Beta" src="https://img.shields.io/badge/TestFlight-Beta-blue?style=flat-square">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-5.9+-orange?style=flat-square">
+  <img alt="iOS" src="https://img.shields.io/badge/iOS-18.0+-blue?style=flat-square">
+</div>
 
-> **Now available on TestFlight!**  
-> [Join the beta](https://testflight.apple.com/join/3T2qSW7h) to explore upcoming features and help us refine the app.  
-> The app is under active development; some features may be unstable or require additional configuration.
+<br>
 
----
+**Ophelia** is a modern, minimalist SwiftUI-based chat application designed for seamless conversations with multiple AI providers. Built with clean architecture principles and featuring advanced capabilities like memory persistence, voice synthesis, and dynamic theme support.
 
-## Key Highlights ✨
-
-| **Multiple AI Providers** | **Rich Model Library** | **Speech Integration** | **System Message Customization** | **Auto-Saved Settings** |
-| :-----------------------: | :--------------------: | :--------------------: | :-----------------------------: | :----------------------: |
-| Integrate seamlessly with OpenAI, Anthropic, or GitHub/Azure-based models. | Access a variety of AI engines (Llama, AI21, Cohere, Mistral, Phi, JAIS, etc.) using a GitHub token. | Enjoy hands-free interactions with built-in speech synthesis (with automatic fallback to system voices). | Fine-tune your AI’s style and behavior via an editable system message. | All credentials, model selections, and custom settings are automatically saved and restored on relaunch. |
-
----
-
-## Feature Details
-
-| **OpenAI** | **Anthropic** | **GitHub/Azure Integration** |
-| :--------: | :-----------: | :--------------------------: |
-| Supports GPT-3.5 Turbo, GPT-4o mini, and more. | Built-in support for Claude models. | Provide a GitHub token to unlock Azure-hosted models (Llama, AI21, Cohere, Mistral, Phi, JAIS, etc.). |
-
-<details>
-<summary><strong>Example Models</strong></summary>
-
-### OpenAI-like
-- `OpenAI GPT-4o`  
-- `OpenAI GPT-4o mini`  
-- `OpenAI o1-mini`  
-- `OpenAI o1-preview`  
-
-### AI21 Labs
-- `AI21-Jamba-1.5-Large`  
-- `AI21-Jamba-1.5-Mini`
-
-### Cohere
-- `Cohere-command-r`  
-- `Cohere-command-r-08-2024`  
-- `Cohere-command-r-plus`  
-- `Cohere-command-r-plus-08-2024`
-
-### Llama
-- `Llama-3.2-11B-Vision-Instruct`  
-- `Llama-3.2-90B-Vision-Instruct`  
-- `Llama-3.3-70B-Instruct`
-
-### Meta-Llama
-- `Meta-Llama-3.1-405B-Instruct`  
-- `Meta-Llama-3.1-70B-Instruct`  
-- `Meta-Llama-3.1-8B-Instruct`  
-- `Meta-Llama-3-70B-Instruct`  
-- `Meta-Llama-3-8B-Instruct`
-
-### Mistral AI
-- `Ministral-3B`  
-- `Mistral-large`  
-- `Mistral-large-2407`  
-- `Mistral-Large-2411`  
-- `Mistral-Nemo`  
-- `Mistral-small`
-
-### Phi
-- `Phi-3.5-MoE-instruct (128k)`  
-- `Phi-3.5-mini-instruct (128k)`  
-- `Phi-3.5-vision-instruct (128k)`  
-- Various `Phi-3-*` models
-
-### JAIS
-- `jais-30b-chat`
-
-</details>
+> **🚀 Now available on TestFlight!**  
+> [Join the beta](https://testflight.apple.com/join/3T2qSW7h) to explore cutting-edge features and help shape the future of AI interaction.
 
 ---
 
-## Quick Start 🚀
+## ✨ Features
 
-| **Step**            | **Action**                                                                                                                                                                                                 |
-| :-----------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1. Clone**        | ```bash<br>git clone https://github.com/Ophelia-Chat/ophelia.git<br>```                                                                                                                                   |
-| **2. Open in Xcode**| Open the cloned folder (`ophelia.xcodeproj` or `ophelia.xcworkspace`) in Xcode.                                                                                                                            |
-| **3. Run the App**  | - Build and run on a simulator or physical device.<br>- In **Settings**, select a provider (OpenAI, Anthropic, or GitHub), enter the corresponding credentials, pick a model, set a system message, and chat! |
+### Multi-Provider AI Support
+- **OpenAI**: GPT-4o, GPT-4o mini, o1-preview, o1-mini
+- **Anthropic**: Claude 3.5 Haiku, Claude 3.5 Sonnet, Claude 3 Opus
+- **GitHub/Azure Models**: Access to 25+ models including Llama, Mistral, Cohere, and more
+- **Ollama**: Local inference with your own models
 
----
+### Advanced Capabilities
+- **🧠 Memory System**: Persistent conversation memory with semantic retrieval
+- **🔊 Speech Integration**: OpenAI TTS and system voice synthesis with auto-play
+- **🎨 Dynamic Theming**: System, light, and dark mode support
+- **📝 Markdown Rendering**: Rich text formatting in conversations
+- **💾 Export Functionality**: JSON export for conversations and memories
+- **⚙️ Custom System Messages**: Fine-tune AI behavior and personality
 
-## Requirements 🗝️
-
-| **API Keys**                                                                    | **GitHub Token**                                                            |
-| :-----------------------------------------------------------------------------: | :--------------------------------------------------------------------------: |
-| - [OpenAI](https://platform.openai.com) <br> - [Anthropic](https://console.anthropic.com) | Generate or use a GitHub token that grants access to Azure-hosted models. |
-
-> **Important:** Without valid API keys or a GitHub token, the app cannot fetch AI responses.
-
----
-
-## TestFlight Beta 🍏
-
-Help shape the future of Ophelia by joining the TestFlight beta. You’ll get exclusive access to the latest features before they’re released to the App Store.
-
-[Join TestFlight Beta](https://testflight.apple.com/join/3T2qSW7h)
+### Developer-Focused Architecture
+- **SwiftUI + Combine**: Modern reactive UI framework
+- **Actor-based Services**: Thread-safe networking and state management
+- **Protocol-oriented Design**: Extensible service architecture
+- **Comprehensive Error Handling**: Robust error management with user feedback
+- **Persistent Storage**: UserDefaults and file-based persistence
 
 ---
 
-## Tips & Troubleshooting 🛠️
+## 🏗️ Architecture
 
-| **Scenario**             | **Advice**                                                                                                                                                                                                     |
-| :----------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Switching Providers**  | Make sure to provide the correct credentials for whichever provider you select. If switching to GitHub, remember to supply your GitHub token.                                                                    |
-| **Speech Errors**        | If OpenAI-based TTS fails, Ophelia automatically switches to system voices.                                                                                                                                    |
-| **Debugging**            | For more detailed logs, check the Xcode console while running the app.                                                                                                                                         |
+### Core Components
+
+#### ChatViewModel
+Central coordinator managing conversation flow, memory integration, and service orchestration.
+
+```swift
+@MainActor
+class ChatViewModel: ObservableObject {
+    @Published private(set) var messages: [MutableMessage] = []
+    @Published var appSettings: AppSettings
+    @Published var memoryStore: MemoryStore
+    // ... additional properties
+}
+```
+
+#### Service Layer
+- **ChatServiceProtocol**: Unified interface for all AI providers
+- **VoiceServiceProtocol**: Text-to-speech abstraction
+- **MemoryStore**: Semantic memory management with optional embeddings
+- **ModelListService**: Dynamic model discovery and caching
+
+#### UI Architecture
+- **Theme System**: Consistent color palette with dark/light mode support
+- **Keyboard Adaptive**: Smart keyboard handling for optimal UX
+- **Message Streaming**: Real-time token display with haptic feedback
 
 ---
 
-## License 📄
+## 🚀 Quick Start
 
-Ophelia.Chat is open source under MIT License.
+### Prerequisites
+- Xcode 15.0+
+- iOS 18.0+ deployment target
+- API keys for your chosen providers
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Ophelia-Chat/ophelia.git
+   cd ophelia
+   ```
+
+2. **Open in Xcode**
+   ```bash
+   open ophelia.xcodeproj
+   ```
+
+3. **Configure providers**
+   - Build and run the app
+   - Navigate to Settings
+   - Select your preferred AI provider
+   - Enter your API credentials
+   - Choose a model and start chatting!
+
+### Supported Providers
+
+| Provider | Setup Instructions | Models Available |
+|----------|-------------------|------------------|
+| **OpenAI** | Get API key from [platform.openai.com](https://platform.openai.com) | GPT-4o, GPT-4o mini, o1-preview, o1-mini |
+| **Anthropic** | Get API key from [console.anthropic.com](https://console.anthropic.com) | Claude 3.5 Haiku, Sonnet, Opus |
+| **GitHub Models** | Generate GitHub token with model access | Llama, Mistral, Cohere, Phi, JAIS, and more |
+| **Ollama** | Install Ollama locally at `localhost:11434` | Any locally installed model |
+
+---
+
+## 🎯 Usage Examples
+
+### Memory Commands
+Ophelia includes an intelligent memory system for persistent context:
+
+```
+remember that I'm a Swift developer working on iOS apps
+remember that I prefer functional programming patterns
+what do you remember about me?
+forget that I mentioned functional programming
+forget everything
+```
+
+### Voice Features
+- **Auto-play**: Enable in settings for hands-free conversations
+- **Multiple voices**: System voices or OpenAI TTS (alloy, echo, fable, onyx, nova, shimmer)
+- **Interruption handling**: Smart pause/resume during interruptions
+
+### Export & Sharing
+- Export conversations as structured JSON
+- Export memories for backup or analysis
+- Copy individual messages or entire conversations
+
+---
+
+## 🔧 Configuration
+
+### Environment Variables
+For development builds, you can set default API keys:
+
+```swift
+// In AppSettings.swift
+#if DEBUG
+private let defaultOpenAIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
+#endif
+```
+
+### Ollama Setup
+1. Install Ollama: `brew install ollama`
+2. Start the service: `ollama serve`
+3. Pull a model: `ollama pull llama3.2`
+4. Configure URL in Ophelia (default: `http://localhost:11434`)
+
+---
+
+## 🎨 Theming
+
+Ophelia features a sophisticated theming system built on color semantics:
+
+```swift
+// Example theme usage
+Color.Theme.primaryGradient(isDarkMode: isDarkMode)
+Color.Theme.bubbleBackground(isDarkMode: isDarkMode, isUser: true)
+Color.Theme.textPrimary(isDarkMode: isDarkMode)
+```
+
+Themes automatically adapt to:
+- System appearance changes
+- User preference overrides
+- Context-aware color schemes
+
+---
+
+## 🏆 Best Practices
+
+### Performance Optimization
+- Lazy loading of conversation history
+- Efficient message tokenization and streaming
+- Memory management with automatic cleanup
+- Concurrent model fetching where supported
+
+### Security
+- Secure API key storage
+- Input validation and sanitization
+- Network request timeout handling
+- Error boundary implementation
+
+### User Experience
+- Haptic feedback during message streaming
+- Smooth keyboard animations
+- Contextual error messages
+- Progressive loading states
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork the repository**
+2. **Create a feature branch**
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+3. **Make your changes**
+4. **Add tests** (when applicable)
+5. **Commit with conventional commits**
+   ```bash
+   git commit -m "feat: add amazing feature"
+   ```
+6. **Push and create a PR**
+
+### Development Guidelines
+- Follow Swift API Design Guidelines
+- Use SwiftUI best practices
+- Implement proper error handling
+- Add documentation for public APIs
+- Ensure thread safety with actors
+
+---
+
+## 📋 Roadmap
+
+### Upcoming Features
+- [ ] **Vision Support**: Image analysis and generation
+- [ ] **Plugin System**: Extensible tool integration
+- [ ] **Cloud Sync**: Cross-device conversation sync
+- [ ] **Advanced Memory**: Vector embeddings and semantic search
+- [ ] **Custom Models**: Fine-tuned model support
+- [ ] **Collaboration**: Shared conversations and workspaces
+
+### Performance Improvements
+- [ ] Message virtualization for large conversations
+- [ ] Improved caching mechanisms
+- [ ] Background model loading
+- [ ] Enhanced streaming performance
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software...
+```
+
+---
+
+## 🙏 Acknowledgments
+
+- **SwiftUI Community**: For excellent frameworks and inspiration
+- **AI Providers**: OpenAI, Anthropic, GitHub, and Ollama teams
+- **Beta Testers**: TestFlight community feedback and contributions
+- **Open Source**: Built on the shoulders of amazing open source projects
+
+---
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/Ophelia-Chat/ophelia/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Ophelia-Chat/ophelia/discussions)
+- **TestFlight**: [Join Beta Program](https://testflight.apple.com/join/3T2qSW7h)
+- **Company**: [KROONEN AI](https://www.kroonen.ai)
 
 ---
 
 <div align="center">
-  <p><strong>We do this for the good—enhancing AI-human synergy responsibly.</strong></p>
-  <p>Feedback and contributions are always appreciated! 🤗</p>
-  <p>Built by <a href="https://kroonen.ai">Kroonen AI, Inc.</a></p>
+  <p><strong>Built with ❤️ by the Ophelia team</strong></p>
+  <p>Enhancing AI-human interaction, one conversation at a time.</p>
+  
+  [![GitHub stars](https://img.shields.io/github/stars/kroonen/ophelia?style=social)](https://github.com/kroonen/ophelia/stargazers)
+  [![GitHub forks](https://img.shields.io/github/forks/kroonen/ophelia?style=social)](https://github.com/kroonen/ophelia/network/members)
 </div>
