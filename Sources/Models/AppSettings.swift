@@ -18,6 +18,7 @@
 import Foundation
 import AVFoundation
 import SwiftUI
+import Security
 
 // MARK: - ThemeMode
 
@@ -148,9 +149,27 @@ final class AppSettings: ObservableObject, Codable, Equatable {
 
     // MARK: - Published Properties
 
-    @Published var openAIKey: String = ""
-    @Published var anthropicKey: String = ""
-    @Published var githubToken: String = ""
+    @Published var openAIKey: String = "" {
+        didSet { 
+            if oldValue != openAIKey {
+                KeychainService.save(openAIKey, forKey: "openAIKey") 
+            }
+        }
+    }
+    @Published var anthropicKey: String = "" {
+        didSet { 
+            if oldValue != anthropicKey {
+                KeychainService.save(anthropicKey, forKey: "anthropicKey") 
+            }
+        }
+    }
+    @Published var githubToken: String = "" {
+        didSet { 
+            if oldValue != githubToken {
+                KeychainService.save(githubToken, forKey: "githubToken") 
+            }
+        }
+    }
     @Published var ollamaServerURL: String = "http://localhost:11434"
 
     @Published var selectedProvider: ChatProvider = .openAI
@@ -217,6 +236,11 @@ final class AppSettings: ObservableObject, Codable, Equatable {
 
         // Use a helper to get a fallback system voice ID, if available.
         self.selectedSystemVoiceId = VoiceHelper.getDefaultVoiceIdentifier()
+        
+        // Load API keys from keychain
+        self.openAIKey = KeychainService.read(forKey: "openAIKey") ?? ""
+        self.anthropicKey = KeychainService.read(forKey: "anthropicKey") ?? ""
+        self.githubToken = KeychainService.read(forKey: "githubToken") ?? ""
     }
 
     // MARK: - Codable Conformance
@@ -242,15 +266,37 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         self.init()
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        openAIKey    = try container.decode(String.self, forKey: .openAIKey)
-        anthropicKey = try container.decode(String.self, forKey: .anthropicKey)
-        githubToken  = try container.decode(String.self, forKey: .githubToken)
+        // Load API keys from keychain first, then check for legacy stored values
+        var openAIFromKeychain = KeychainService.read(forKey: "openAIKey") ?? ""
+        var anthropicFromKeychain = KeychainService.read(forKey: "anthropicKey") ?? ""
+        var githubFromKeychain = KeychainService.read(forKey: "githubToken") ?? ""
+        
+        // If keychain is empty, try to migrate from legacy storage
+        if openAIFromKeychain.isEmpty, let legacy = try? container.decode(String.self, forKey: .openAIKey), !legacy.isEmpty {
+            openAIFromKeychain = legacy
+            KeychainService.save(legacy, forKey: "openAIKey")
+        }
+        
+        if anthropicFromKeychain.isEmpty, let legacy = try? container.decode(String.self, forKey: .anthropicKey), !legacy.isEmpty {
+            anthropicFromKeychain = legacy
+            KeychainService.save(legacy, forKey: "anthropicKey")
+        }
+        
+        if githubFromKeychain.isEmpty, let legacy = try? container.decode(String.self, forKey: .githubToken), !legacy.isEmpty {
+            githubFromKeychain = legacy
+            KeychainService.save(legacy, forKey: "githubToken")
+        }
+        
+        // Set the values (this will trigger the didSet observers)
+        self.openAIKey = openAIFromKeychain
+        self.anthropicKey = anthropicFromKeychain
+        self.githubToken = githubFromKeychain
 
         selectedProvider    = try container.decode(ChatProvider.self, forKey: .selectedProvider)
         selectedModelId     = try container.decode(String.self, forKey: .selectedModelId)
         systemMessage       = try container.decode(String.self, forKey: .systemMessage)
         selectedVoiceProvider = try container.decode(VoiceProvider.self, forKey: .selectedVoiceProvider)
-        selectedSystemVoiceId  = try container.decode(String.self, forKey: .selectedSystemVoiceId)
+        selectedSystemVoiceId  = try container.decode(String.self, forKey: .selectedVoiceProvider)
         selectedOpenAIVoice    = try container.decode(String.self, forKey: .selectedOpenAIVoice)
         autoplayVoice          = try container.decode(Bool.self,  forKey: .autoplayVoice)
 
@@ -272,9 +318,6 @@ final class AppSettings: ObservableObject, Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        try container.encode(openAIKey,    forKey: .openAIKey)
-        try container.encode(anthropicKey, forKey: .anthropicKey)
-        try container.encode(githubToken,  forKey: .githubToken)
 
         try container.encode(selectedProvider,     forKey: .selectedProvider)
         try container.encode(selectedModelId,      forKey: .selectedModelId)
@@ -308,5 +351,56 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         lhs.themeMode == rhs.themeMode &&
         lhs.modelsForProvider == rhs.modelsForProvider &&
         lhs.ollamaServerURL == rhs.ollamaServerURL
+    }
+}
+
+/// A lightweight helper for reading and writing strings to the Keychain.
+/// Values are stored under the app's generic password class using the
+/// provided key as the account name.
+enum KeychainService {
+    /// Saves the given string to the Keychain.
+    /// If an item already exists for this key, it will be replaced.
+    @discardableResult
+    static func save(_ value: String, forKey key: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
+
+        // Delete any existing item first
+        delete(key: key)
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data
+        ]
+        let status = SecItemAdd(query as CFDictionary, nil)
+        return status == errSecSuccess
+    }
+
+    /// Reads a string value for the given key from the Keychain.
+    static func read(forKey key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: kCFBooleanTrue as Any,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let string = String(data: data, encoding: .utf8)
+        else { return nil }
+        return string
+    }
+
+    /// Deletes the Keychain item for the given key, if it exists.
+    @discardableResult
+    static func delete(key: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess
     }
 }
