@@ -148,9 +148,15 @@ final class AppSettings: ObservableObject, Codable, Equatable {
 
     // MARK: - Published Properties
 
-    @Published var openAIKey: String = ""
-    @Published var anthropicKey: String = ""
-    @Published var githubToken: String = ""
+    @Published var openAIKey: String = KeychainService.read(forKey: "openAIKey") ?? "" {
+        didSet { KeychainService.save(openAIKey, forKey: "openAIKey") }
+    }
+    @Published var anthropicKey: String = KeychainService.read(forKey: "anthropicKey") ?? "" {
+        didSet { KeychainService.save(anthropicKey, forKey: "anthropicKey") }
+    }
+    @Published var githubToken: String = KeychainService.read(forKey: "githubToken") ?? "" {
+        didSet { KeychainService.save(githubToken, forKey: "githubToken") }
+    }
     @Published var ollamaServerURL: String = "http://localhost:11434"
 
     @Published var selectedProvider: ChatProvider = .openAI
@@ -242,9 +248,26 @@ final class AppSettings: ObservableObject, Codable, Equatable {
         self.init()
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        openAIKey    = try container.decode(String.self, forKey: .openAIKey)
-        anthropicKey = try container.decode(String.self, forKey: .anthropicKey)
-        githubToken  = try container.decode(String.self, forKey: .githubToken)
+        if let stored = KeychainService.read(forKey: "openAIKey") {
+            openAIKey = stored
+        } else if let legacy = try? container.decode(String.self, forKey: .openAIKey), !legacy.isEmpty {
+            openAIKey = legacy
+            KeychainService.save(legacy, forKey: "openAIKey")
+        }
+
+        if let stored = KeychainService.read(forKey: "anthropicKey") {
+            anthropicKey = stored
+        } else if let legacy = try? container.decode(String.self, forKey: .anthropicKey), !legacy.isEmpty {
+            anthropicKey = legacy
+            KeychainService.save(legacy, forKey: "anthropicKey")
+        }
+
+        if let stored = KeychainService.read(forKey: "githubToken") {
+            githubToken = stored
+        } else if let legacy = try? container.decode(String.self, forKey: .githubToken), !legacy.isEmpty {
+            githubToken = legacy
+            KeychainService.save(legacy, forKey: "githubToken")
+        }
 
         selectedProvider    = try container.decode(ChatProvider.self, forKey: .selectedProvider)
         selectedModelId     = try container.decode(String.self, forKey: .selectedModelId)
@@ -272,9 +295,6 @@ final class AppSettings: ObservableObject, Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        try container.encode(openAIKey,    forKey: .openAIKey)
-        try container.encode(anthropicKey, forKey: .anthropicKey)
-        try container.encode(githubToken,  forKey: .githubToken)
 
         try container.encode(selectedProvider,     forKey: .selectedProvider)
         try container.encode(selectedModelId,      forKey: .selectedModelId)
