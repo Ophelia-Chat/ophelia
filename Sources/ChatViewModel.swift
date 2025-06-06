@@ -469,14 +469,14 @@ class ChatViewModel: ObservableObject {
      */
     private func loadSettings() async {
         if let savedSettingsData = userDefaults.data(forKey: "appSettingsData"),
-           var decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettingsData) {
+           let decodedSettings = try? decoder.decode(AppSettings.self, from: savedSettingsData) {
             decodedSettings.openAIKey = KeychainService.read(forKey: "openAIKey") ?? decodedSettings.openAIKey
             decodedSettings.anthropicKey = KeychainService.read(forKey: "anthropicKey") ?? decodedSettings.anthropicKey
             decodedSettings.githubToken = KeychainService.read(forKey: "githubToken") ?? decodedSettings.githubToken
             self.appSettings = decodedSettings
             print("[ChatViewModel] Loaded saved app settings.")
         } else {
-            var defaults = AppSettings()
+            let defaults = AppSettings()
             defaults.openAIKey = KeychainService.read(forKey: "openAIKey") ?? ""
             defaults.anthropicKey = KeychainService.read(forKey: "anthropicKey") ?? ""
             defaults.githubToken = KeychainService.read(forKey: "githubToken") ?? ""
